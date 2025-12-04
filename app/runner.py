@@ -184,7 +184,7 @@ class TestudoWatchdog:
                 )
 
                 notification_results = await self.notification.send_availability_alert(
-                    recipients=self.settings.recipient_phone_numbers,
+                    recipients=[self.settings.recipient_phone_number],
                     course_name=course.name,
                     availability=availability,
                     course_url=course.url,

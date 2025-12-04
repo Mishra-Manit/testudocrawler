@@ -15,8 +15,8 @@ TWILIO_ACCOUNT_SID=ACxxx
 TWILIO_AUTH_TOKEN=xxx
 TWILIO_PHONE_NUMBER=+15550000000
 
-# Recipient phone numbers (comma-separated)
-RECIPIENT_PHONE_NUMBERS=+15559998888,+15559998889
+# Recipient phone number
+RECIPIENT_PHONE_NUMBER=+15559998888
 ```
 
 ### Optional Variables

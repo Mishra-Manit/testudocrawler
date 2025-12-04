@@ -92,7 +92,7 @@ ANTHROPIC_MODEL=claude-3-haiku-20240307
 TWILIO_ACCOUNT_SID=ACxxxxx
 TWILIO_AUTH_TOKEN=xxxxx
 TWILIO_PHONE_NUMBER=+1234567890
-RECIPIENT_PHONE_NUMBERS=+1234567891,+1234567892
+RECIPIENT_PHONE_NUMBER=+1234567890
 
 # Application Settings
 DEBUG=False
@@ -157,7 +157,7 @@ Press `Ctrl+C` to gracefully shutdown the application.
 | `TWILIO_ACCOUNT_SID` | Yes | Twilio Account SID | - |
 | `TWILIO_AUTH_TOKEN` | Yes | Twilio Auth Token | - |
 | `TWILIO_PHONE_NUMBER` | Yes | Twilio phone number (from) | - |
-| `RECIPIENT_PHONE_NUMBERS` | Yes | Recipient numbers (comma-separated) | - |
+| `RECIPIENT_PHONE_NUMBER` | Yes | Recipient phone number | - |
 | `DEBUG` | No | Debug mode | `False` |
 | `LOG_LEVEL` | No | Logging level | `INFO` |
 | `SCRAPER_TIMEOUT` | No | Scraping timeout (seconds) | `30` |

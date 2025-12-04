@@ -25,8 +25,8 @@ class Settings(BaseSettings):
     twilio_account_sid: str = Field(..., alias="TWILIO_ACCOUNT_SID")
     twilio_auth_token: str = Field(..., alias="TWILIO_AUTH_TOKEN")
     twilio_phone_number: str = Field(..., alias="TWILIO_PHONE_NUMBER")
-    recipient_phone_numbers: list[str] = Field(
-        ..., alias="RECIPIENT_PHONE_NUMBERS"
+    recipient_phone_number: str = Field(
+        ..., alias="RECIPIENT_PHONE_NUMBER"
     )
 
     # Application Settings
@@ -45,13 +45,6 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    @field_validator("recipient_phone_numbers", mode="before")
-    @classmethod
-    def parse_phone_numbers(cls, v: Any) -> list[str]:
-        """Parse comma-separated phone numbers from environment variable."""
-        if isinstance(v, str):
-            return [num.strip() for num in v.split(",") if num.strip()]
-        return v
 
     @field_validator("log_level")
     @classmethod

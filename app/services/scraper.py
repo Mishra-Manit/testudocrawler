@@ -171,38 +171,6 @@ class ScraperService:
         # This should never be reached, but just in case
         raise Exception(f"Failed to scrape {url} after {max_retries} attempts")
 
-    async def scrape_multiple(
-        self,
-        urls: list[str],
-        max_concurrent: int = 5,
-    ) -> dict[str, dict]:
-        """
-        Scrape multiple URLs concurrently with concurrency limit.
-
-        Args:
-            urls: List of URLs to scrape
-            max_concurrent: Maximum number of concurrent scraping operations
-
-        Returns:
-            Dictionary mapping URLs to their scraping results or errors
-        """
-        semaphore = asyncio.Semaphore(max_concurrent)
-
-        async def scrape_with_semaphore(url: str) -> tuple[str, dict]:
-            async with semaphore:
-                try:
-                    result = await self.scrape_page(url)
-                    return url, {"success": True, "data": result}
-                except Exception as e:
-                    logger.error(f"Failed to scrape {url}: {e}")
-                    return url, {"success": False, "error": str(e)}
-
-        results = await asyncio.gather(
-            *[scrape_with_semaphore(url) for url in urls]
-        )
-
-        return dict(results)
-
     async def __aenter__(self):
         """Async context manager entry."""
         await self.initialize()

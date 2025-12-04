@@ -111,7 +111,7 @@ Link: [URL]
 - `TWILIO_ACCOUNT_SID`: Twilio account SID
 - `TWILIO_AUTH_TOKEN`: Twilio auth token
 - `TWILIO_PHONE_NUMBER`: Twilio phone number (sender)
-- `RECIPIENT_PHONE_NUMBERS`: Comma-separated recipient numbers
+- `RECIPIENT_PHONE_NUMBER`: Recipient phone number
 - `SCRAPER_TIMEOUT`: Scraper timeout in seconds (default: 30)
 - `LOG_LEVEL`: Logging level (default: INFO)
 

@@ -26,7 +26,7 @@ class AIAgentService:
 
         Args:
             api_key: Anthropic API key
-            model: Model to use (default: claude-3-haiku-20240307)
+            model: Model to use. Set in .env file.
         """
         self.api_key = api_key
         self.model = f"anthropic:{model}"
