@@ -1,0 +1,16 @@
+# Course Monitoring Configuration
+# Define the courses you want to monitor for seat availability
+
+targets:
+  - id: "cmsc216_spring26"
+    name: "CMSC216 (Kauffman)"
+    url: "https://app.testudo.umd.edu/soc/search?courseId=CMSC216&sectionId=&termId=202601&_openSectionsOnly=on&creditCompare=%3E%3D&credits=0.0&courseLevelFilter=ALL&instructor=Kauffman%2C+Christopher&_facetoface=on&_blended=on&_online=on"
+    interval: 300  # Check every 5 minutes (300 seconds)
+    enabled: true
+
+  # Add more courses as needed
+  # - id: "unique_course_id"
+  #   name: "Course Name"
+  #   url: "https://app.testudo.umd.edu/soc/search?..."
+  #   interval: 300  # Check interval in seconds
+  #   enabled: true
