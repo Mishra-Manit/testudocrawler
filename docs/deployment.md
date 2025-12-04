@@ -165,7 +165,11 @@ The application can be deployed to Render's free tier as a web service. This pro
    - **Runtime**: Python
    - **Build Command**:
      ```bash
-     pip install --upgrade pip && pip install -r requirements.txt && playwright install chromium && playwright install-deps
+     ./build.sh
+     ```
+     Or if you prefer inline:
+     ```bash
+     pip install --upgrade pip && pip install -r requirements.txt && python -m playwright install --with-deps chromium
      ```
    - **Start Command**:
      ```bash
