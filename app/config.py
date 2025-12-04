@@ -5,7 +5,7 @@ Handles environment variables and YAML configuration loading.
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import yaml
 from pydantic import Field, field_validator
@@ -21,12 +21,12 @@ class Settings(BaseSettings):
         default="claude-3-haiku-20240307", alias="ANTHROPIC_MODEL"
     )
 
-    # Twilio Configuration
+    # Twilio WhatsApp Configuration
     twilio_account_sid: str = Field(..., alias="TWILIO_ACCOUNT_SID")
     twilio_auth_token: str = Field(..., alias="TWILIO_AUTH_TOKEN")
-    twilio_phone_number: str = Field(..., alias="TWILIO_PHONE_NUMBER")
-    recipient_phone_number: str = Field(
-        ..., alias="RECIPIENT_PHONE_NUMBER"
+    twilio_whatsapp_number: str = Field(..., alias="TWILIO_WHATSAPP_NUMBER")
+    recipient_whatsapp_number: str = Field(
+        ..., alias="RECIPIENT_WHATSAPP_NUMBER"
     )
 
     # Application Settings
@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     scraper_timeout: int = Field(default=30, alias="SCRAPER_TIMEOUT")
     ai_timeout: int = Field(default=10, alias="AI_TIMEOUT")
+
+    # Logfire Configuration
+    logfire_token: Optional[str] = Field(default=None, alias="LOGFIRE_TOKEN")
 
     # Configuration File Paths
     courses_config_path: str = Field(default="config/courses.yaml")

@@ -108,76 +108,144 @@ sudo systemctl start testudo-watchdog
 sudo systemctl status testudo-watchdog
 ```
 
-### Docker
+## Cloud Deployment (Render)
 
-Create `Dockerfile`:
+The application can be deployed to Render's free tier as a web service. This provides 24/7 availability without managing servers.
 
-```dockerfile
-FROM python:3.11-slim
+### Architecture
 
-WORKDIR /app
+- **Web Service**: FastAPI with uvicorn (lightweight and professional)
+- **Background Task**: ProfessorAlert runs as an asyncio background task
+- **Endpoints**:
+  - `GET /` - Root endpoint, confirms service is alive
+  - `GET /health` - Detailed health check with monitoring stats
+  - `GET /ping` - Minimal ping endpoint for external monitors
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    && rm -rf /var/lib/apt/lists/*
+### Deployment Steps
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+#### Option 1: One-Click Deploy (Using render.yaml)
 
-# Install Playwright browsers
-RUN playwright install chromium
-RUN playwright install-deps chromium
+1. **Push your code to GitHub** (if not already done)
+   ```bash
+   git add .
+   git commit -m "Add Render deployment configuration"
+   git push origin main
+   ```
 
-# Copy application code
-COPY . .
+2. **Create a new Web Service on Render**
+   - Go to https://dashboard.render.com/
+   - Click "New +" → "Blueprint"
+   - Connect your GitHub repository
+   - Render will automatically detect `render.yaml`
 
-# Run application
-CMD ["python", "-m", "app.runner"]
-```
+3. **Configure Environment Variables**
+   In the Render dashboard, set these required environment variables:
+   - `ANTHROPIC_API_KEY` - Your Anthropic API key
+   - `TWILIO_ACCOUNT_SID` - Your Twilio account SID
+   - `TWILIO_AUTH_TOKEN` - Your Twilio auth token
+   - `TWILIO_PHONE_NUMBER` - Your Twilio phone number (format: +1234567890)
+   - `RECIPIENT_PHONE_NUMBER` - Phone number to receive notifications
+   - `LOGFIRE_TOKEN` - (Optional) For observability
 
-Build and run:
+4. **Deploy**
+   - Click "Apply" to deploy
+   - Wait for the build to complete (~5-10 minutes)
+
+#### Option 2: Manual Deployment
+
+1. **Create New Web Service**
+   - Go to https://dashboard.render.com/
+   - Click "New +" → "Web Service"
+   - Connect your GitHub repository
+
+2. **Configure Build Settings**
+   - **Name**: professor-alert (or your preferred name)
+   - **Region**: Choose closest to you
+   - **Branch**: main
+   - **Runtime**: Python
+   - **Build Command**:
+     ```bash
+     pip install --upgrade pip && pip install -r requirements.txt && playwright install chromium && playwright install-deps
+     ```
+   - **Start Command**:
+     ```bash
+     python -m uvicorn app.web:app --host 0.0.0.0 --port 10000
+     ```
+
+3. **Configure Instance**
+   - **Instance Type**: Free
+
+4. **Set Environment Variables**
+   Add all required environment variables (see list above)
+
+5. **Create Web Service**
+   - Click "Create Web Service"
+   - Wait for deployment to complete
+
+### Keeping Service Alive (Free Tier)
+
+Render's free tier spins down after 15 minutes of inactivity. To keep your service alive 24/7:
+
+#### Recommended: External Pinger Services
+
+Use a free external monitoring service to ping your endpoint every 10-14 minutes:
+
+1. **UptimeRobot** (Free: https://uptimerobot.com)
+   - Create a new HTTP(s) monitor
+   - URL: `https://your-app.onrender.com/ping`
+   - Monitoring interval: 5 minutes (free tier)
+
+2. **Freshping** (Free: https://freshping.io)
+   - Add a new check
+   - URL: `https://your-app.onrender.com/ping`
+   - Check interval: 1 minute
+
+3. **Cronitor** (Free tier available: https://cronitor.io)
+   - Create a heartbeat monitor
+   - Ping URL: `https://your-app.onrender.com/ping`
+
+4. **Healthchecks.io** (Free: https://healthchecks.io)
+   - Create a new check with HTTP endpoint
+   - URL: `https://your-app.onrender.com/ping`
+
+#### Alternative: Cron-job.org
+
+Set up a scheduled ping using https://cron-job.org:
+- URL: `https://your-app.onrender.com/ping`
+- Schedule: Every 10 minutes
+
+### Monitoring Your Service
+
+#### Check Service Status
+
+Visit your deployed service URL:
+- Root: `https://your-app.onrender.com/` - Shows uptime and status
+- Health: `https://your-app.onrender.com/health` - Detailed health metrics
+
+#### View Logs
+
+In Render dashboard:
+1. Go to your web service
+2. Click "Logs" tab
+3. Monitor real-time logs for course checks and notifications
+
+#### Logfire Observability (Optional)
+
+If you set the `LOGFIRE_TOKEN` environment variable:
+1. Visit https://logfire.pydantic.dev
+2. View detailed traces, metrics, and AI agent performance
+
+### Updating Your Deployment
+
+To update your deployed service:
 
 ```bash
-docker build -t testudo-watchdog .
-docker run -d \
-  --name testudo-watchdog \
-  --env-file .env \
-  -v $(pwd)/config:/app/config \
-  testudo-watchdog
+git add .
+git commit -m "Your update message"
+git push origin main
 ```
 
-### Docker Compose
-
-Create `docker-compose.yml`:
-
-```yaml
-version: '3.8'
-
-services:
-  watchdog:
-    build: .
-    container_name: testudo-watchdog
-    env_file:
-      - .env
-    volumes:
-      - ./config:/app/config
-    restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-```
-
-Run:
-
-```bash
-docker-compose up -d
-docker-compose logs -f
-```
+Render will automatically detect changes and redeploy.
 
 ## Monitoring
 

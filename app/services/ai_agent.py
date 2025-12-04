@@ -7,6 +7,8 @@ import logging
 from typing import Optional
 
 from pydantic_ai import Agent
+from pydantic_ai.models.anthropic import AnthropicModel
+from pydantic_ai.providers.anthropic import AnthropicProvider
 
 from app.models.schemas import AvailabilityCheck
 
@@ -19,7 +21,7 @@ class AIAgentService:
     def __init__(
         self,
         api_key: str,
-        model: str = "claude-3-haiku-20240307",
+        model: str
     ):
         """
         Initialize AI agent service.
@@ -29,67 +31,76 @@ class AIAgentService:
             model: Model to use. Set in .env file.
         """
         self.api_key = api_key
-        self.model = f"anthropic:{model}"
+        self.model = model
 
         # Create Pydantic AI agent with structured output
+        # Pass the API key explicitly to the AnthropicProvider
+        provider = AnthropicProvider(api_key=api_key)
+        anthropic_model = AnthropicModel(model, provider=provider)
         self.agent = Agent(
-            self.model,
-            result_type=AvailabilityCheck,
+            anthropic_model,
+            output_type=AvailabilityCheck,
             system_prompt=self._build_system_prompt(),
         )
 
         logger.info(f"AI agent initialized with model: {model}")
 
     def _build_system_prompt(self) -> str:
-        """Build the system prompt for the AI agent."""
-        return """You are a university scheduling assistant analyzing course registration pages.
+        """Build the generic system prompt for the AI agent."""
+        return """You are an intelligent university course monitoring assistant.
 
-Your ONLY goal is to find sections where 'Open' seats are greater than 0.
+Your role is to analyze course registration pages and determine availability based on user-provided instructions.
 
-Analyze the provided text from a course catalog page. Look for patterns like:
-- "Seats (Total: X, Open: Y, Waitlist: Z)"
-- Section numbers (typically 4 digits like 0201, 0202, etc.)
-- Any indication of seat availability
+CAPABILITIES:
+- You receive raw text extracted from a university course page
+- You receive specific user instructions about what to check
+- Your job is to follow those instructions and determine if the condition is met
 
-Important guidelines:
-- Ignore Waitlist numbers - only care about Open seats
-- Ignore Total numbers - only care if Open > 0
-- Extract the exact section ID (e.g., "0201", "0204")
-- Only mark is_available as true if you find at least one section with Open > 0
-- Be precise: if Open is 0 or not found, mark is_available as false
-- Provide a brief summary in raw_text_summary of what you observed
+STRUCTURED OUTPUT:
+Always return:
+- is_available (bool): True if the user's condition is met, False otherwise
+- sections (list): Relevant sections with seat information (section_id, open_seats, total_seats, waitlist)
+- raw_text_summary (str): Brief explanation of what you found and why
 
-Output format:
-- is_available: true ONLY if Open > 0 for any section
-- sections: list of all sections found with their seat information
-- raw_text_summary: brief description of what was seen
+ANALYSIS GUIDELINES:
+1. Carefully read the user's instructions
+2. Scan the page text for relevant information (look for patterns like "Seats (Total: X, Open: Y, Waitlist: Z)")
+3. Extract section numbers (typically 4 digits like 0201, 0202)
+4. Determine if the user's condition is satisfied
+5. Be precise - if data is ambiguous or missing, mark is_available as false
+6. Provide clear reasoning in raw_text_summary
+
+Remember: Your analysis should directly address what the user asked for in their instructions.
 """
 
     async def check_availability(
         self,
         raw_text: str,
         course_name: Optional[str] = None,
+        user_instructions: Optional[str] = None,
     ) -> AvailabilityCheck:
         """
-        Analyze course page text to determine seat availability.
+        Analyze course page text based on user instructions.
 
         Args:
             raw_text: Raw text content extracted from the course page
             course_name: Optional course name for context
+            user_instructions: User-defined instructions for what to check
 
         Returns:
             AvailabilityCheck with seat availability information
         """
         try:
-            # Build the prompt
+            # Build the prompt with user instructions
             prompt = self._build_analysis_prompt(
                 raw_text=raw_text,
                 course_name=course_name,
+                user_instructions=user_instructions,
             )
 
             logger.info(
-                f"Analyzing availability for {course_name or 'course'} "
-                f"({len(raw_text)} chars)"
+                f"Analyzing {course_name or 'course'} "
+                f"({len(raw_text)} chars) with custom instructions"
             )
 
             # Run the agent with structured output
@@ -112,15 +123,16 @@ Output format:
             return AvailabilityCheck(
                 is_available=False,
                 sections=[],
-                raw_text_summary=f"Analysis failed due to error: {str(e)}",
+                raw_text_summary=f"Analysis failed: {str(e)}",
             )
 
     def _build_analysis_prompt(
         self,
         raw_text: str,
         course_name: Optional[str] = None,
+        user_instructions: Optional[str] = None,
     ) -> str:
-        """Build the analysis prompt with course information."""
+        """Build the analysis prompt with user instructions."""
         # Truncate page text if too long (Claude Haiku context limits)
         max_text_length = 15000  # Keep reasonable for Haiku
         if len(raw_text) > max_text_length:
@@ -130,41 +142,37 @@ Output format:
             )
             raw_text = raw_text[:max_text_length] + "\n\n[Content truncated...]"
 
-        course_context = f"Course: {course_name}\n\n" if course_name else ""
+        course_context = f"Course: {course_name}\n" if course_name else ""
 
-        prompt = f"""Analyze this course registration page text to find sections with open seats.
+        # Include user instructions prominently
+        instructions_section = f"""
+USER INSTRUCTIONS:
+{user_instructions}
 
-{course_context}**Page Content:**
+Your task is to follow the above instructions and determine if the condition is met.
+""" if user_instructions else """
+ERROR: No user instructions provided. Unable to analyze.
+"""
+
+        prompt = f"""Analyze this course registration page text.
+
+{course_context}
+{instructions_section}
+
+**PAGE CONTENT:**
 {raw_text}
 
 ---
 
-Your task:
-1. Look for section numbers (typically 4 digits like 0201, 0202, etc.)
-2. For each section, find the seat information pattern: "Seats (Total: X, Open: Y, Waitlist: Z)"
-3. Extract sections where Open > 0
-4. Return is_available=true ONLY if at least one section has Open > 0
-5. Include all sections found (even if Open=0) in the sections list
-6. Provide a brief summary of what you observed
+ANALYSIS STEPS:
+1. Read and understand what the user wants to check
+2. Scan the page content for relevant section information
+3. Look for seat availability patterns
+4. Extract section IDs and their seat counts
+5. Determine if the user's condition is satisfied
+6. Provide structured output with is_available, sections, and a clear summary
 
-Remember: Only mark is_available as true if Open seats > 0 for any section.
+Set is_available=true ONLY if the user's condition is clearly met.
 """
 
         return prompt
-
-    async def test_connection(self) -> bool:
-        """
-        Test connection to Anthropic API.
-
-        Returns:
-            True if connection successful, False otherwise
-        """
-        try:
-            # Simple test prompt
-            result = await self.agent.run(
-                "Respond with a simple availability check: is_available=false, sections=[], raw_text_summary='test'"
-            )
-            return True
-        except Exception as e:
-            logger.error(f"API connection test failed: {e}")
-            return False

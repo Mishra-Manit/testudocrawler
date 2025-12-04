@@ -13,8 +13,11 @@ from typing import Dict, Optional
 
 import structlog
 
+import logfire
+
 from app.config import get_settings
 from app.models.schemas import CourseConfig
+from app.observability.logfire_config import initialize_logfire
 from app.services.ai_agent import AIAgentService
 from app.services.notification import NotificationService
 from app.services.scraper import ScraperService
@@ -74,14 +77,14 @@ class TestudoWatchdog:
             )
             logger.info("AI Agent Service initialized successfully")
 
-            # Initialize Notification Service
-            logger.info("Initializing Notification Service...")
+            # Initialize WhatsApp Notification Service
+            logger.info("Initializing WhatsApp Notification Service...")
             self.notification = NotificationService(
                 account_sid=self.settings.twilio_account_sid,
                 auth_token=self.settings.twilio_auth_token,
-                from_number=self.settings.twilio_phone_number,
+                from_number=self.settings.twilio_whatsapp_number,
             )
-            logger.info("Notification Service initialized successfully")
+            logger.info("WhatsApp Notification Service initialized successfully")
 
             logger.info("All services initialized successfully")
 
@@ -122,14 +125,29 @@ class TestudoWatchdog:
                 )
                 continue
 
-            course = CourseConfig(
-                id=target["id"],
-                name=target["name"],
-                url=target["url"],
-                check_interval_seconds=target.get("interval", 300),
-                enabled=target.get("enabled", True),
-            )
-            courses.append(course)
+            try:
+                # Explicit validation for required user_instructions field
+                if "user_instructions" not in target:
+                    raise ValueError(
+                        f"Course '{target.get('id', 'unknown')}' missing required field "
+                        f"'user_instructions'. Please add instructions for what to check."
+                    )
+
+                course = CourseConfig(
+                    id=target["id"],
+                    name=target["name"],
+                    url=target["url"],
+                    user_instructions=target["user_instructions"],
+                    notification_message=target.get("notification_message"),
+                    check_interval_seconds=target.get("interval", 300),
+                    enabled=target.get("enabled", True),
+                )
+                courses.append(course)
+                logger.info(f"Loaded course: {course.id} with custom instructions")
+
+            except Exception as e:
+                logger.error(f"Failed to load course {target.get('id', 'unknown')}: {e}")
+                continue  # Continue loading other courses
 
         logger.info(f"Loaded {len(courses)} enabled course(s) to monitor")
         return courses
@@ -141,92 +159,107 @@ class TestudoWatchdog:
         Args:
             course: Course configuration to check
         """
-        start_time = time.time()
-        logger.info(
-            "Starting course check",
+        with logfire.span(
+            "course_check",
             course_id=course.id,
             course_name=course.name,
-            url=course.url,
-        )
-
-        try:
-            # Step 1: Scrape the course page
-            scrape_result = await self.scraper.scrape_page(course.url)
-            page_text = scrape_result["text"]
+        ):
+            start_time = time.time()
             logger.info(
-                "Scraping complete",
-                course_id=course.id,
-                text_length=len(page_text),
-            )
-
-            # Step 2: Analyze with AI agent
-            availability = await self.ai_agent.check_availability(
-                raw_text=page_text,
-                course_name=course.name,
-            )
-
-            logger.info(
-                "AI analysis complete",
-                course_id=course.id,
-                is_available=availability.is_available,
-                sections_found=len(availability.sections),
-            )
-
-            # Step 3: Send notifications if seats are available
-            if availability.is_available:
-                logger.warning(
-                    "SEATS AVAILABLE!",
-                    course_id=course.id,
-                    course_name=course.name,
-                    sections=[
-                        s.section_id for s in availability.sections if s.open_seats > 0
-                    ],
-                )
-
-                notification_results = await self.notification.send_availability_alert(
-                    recipients=[self.settings.recipient_phone_number],
-                    course_name=course.name,
-                    availability=availability,
-                    course_url=course.url,
-                )
-
-                successful_notifications = sum(
-                    1 for r in notification_results if r.success
-                )
-                logger.info(
-                    "Notifications sent",
-                    course_id=course.id,
-                    successful=successful_notifications,
-                    total=len(notification_results),
-                )
-            else:
-                logger.info(
-                    "No seats available",
-                    course_id=course.id,
-                    course_name=course.name,
-                )
-
-            # Update last check time
-            self.last_check_times[course.id] = datetime.utcnow()
-
-            duration = time.time() - start_time
-            logger.info(
-                "Course check complete",
-                course_id=course.id,
-                duration_seconds=round(duration, 2),
-                is_available=availability.is_available,
-            )
-
-        except Exception as e:
-            duration = time.time() - start_time
-            logger.error(
-                "Course check failed",
+                "Starting course check",
                 course_id=course.id,
                 course_name=course.name,
-                error=str(e),
-                duration_seconds=round(duration, 2),
-                exc_info=True,
+                url=course.url,
+                instructions=course.user_instructions[:50] + "...",  # Log first 50 chars
             )
+
+            try:
+                # Step 1: Scrape the course page
+                scrape_result = await self.scraper.scrape_page(course.url)
+                page_text = scrape_result["text"]
+                logger.info(
+                    "Scraping complete",
+                    course_id=course.id,
+                    text_length=len(page_text),
+                )
+
+                # Step 2: Analyze with AI agent using user instructions
+                availability = await self.ai_agent.check_availability(
+                    raw_text=page_text,
+                    course_name=course.name,
+                    user_instructions=course.user_instructions,
+                )
+
+                logger.info(
+                    "AI analysis complete",
+                    course_id=course.id,
+                    is_available=availability.is_available,
+                    sections_found=len(availability.sections),
+                )
+
+                # Step 3: Send notifications if condition is met
+                if availability.is_available:
+                    logger.warning(
+                        "CONDITION MET!",
+                        course_id=course.id,
+                        course_name=course.name,
+                        sections=[
+                            s.section_id for s in availability.sections if s.open_seats > 0
+                        ],
+                    )
+
+                    # Log to Logfire for high visibility
+                    logfire.info(
+                        "Seats available!",
+                        course_id=course.id,
+                        sections=[s.section_id for s in availability.sections if s.open_seats > 0]
+                    )
+
+                    notification_results = await self.notification.send_availability_alert(
+                        recipients=[self.settings.recipient_whatsapp_number],
+                        course_name=course.name,
+                        availability=availability,
+                        course_url=course.url,
+                        custom_message=course.notification_message,
+                    )
+
+                    successful_notifications = sum(
+                        1 for r in notification_results if r.success
+                    )
+                    logger.info(
+                        "Notifications sent",
+                        course_id=course.id,
+                        successful=successful_notifications,
+                        total=len(notification_results),
+                    )
+                else:
+                    logger.info(
+                        "Condition not met",
+                        course_id=course.id,
+                        course_name=course.name,
+                    )
+
+                # Update last check time
+                self.last_check_times[course.id] = datetime.utcnow()
+
+                duration = time.time() - start_time
+                logger.info(
+                    "Course check complete",
+                    course_id=course.id,
+                    duration_seconds=round(duration, 2),
+                    is_available=availability.is_available,
+                )
+
+            except Exception as e:
+                duration = time.time() - start_time
+                logger.error(
+                    "Course check failed",
+                    course_id=course.id,
+                    course_name=course.name,
+                    error=str(e),
+                    duration_seconds=round(duration, 2),
+                    exc_info=True,
+                )
 
     async def monitor_course_loop(self, course: CourseConfig) -> None:
         """
@@ -324,6 +357,9 @@ def setup_signal_handlers(watchdog: TestudoWatchdog) -> None:
 
 async def main() -> None:
     """Main entry point."""
+    # Initialize Logfire observability
+    initialize_logfire()
+
     watchdog = TestudoWatchdog()
     setup_signal_handlers(watchdog)
 

@@ -5,7 +5,7 @@ Pydantic models for data structures and schemas.
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SectionStatus(BaseModel):
@@ -65,7 +65,32 @@ class CourseConfig(BaseModel):
     id: str = Field(..., description="Unique identifier for the course")
     name: str = Field(..., description="Course name")
     url: str = Field(..., description="The exact URL with filters applied")
+    user_instructions: str = Field(
+        ...,
+        description="Natural language instructions for what to check on the page"
+    )
+    notification_message: Optional[str] = Field(
+        default=None,
+        description="Custom notification message (optional). Defaults to generic alert if not provided."
+    )
     check_interval_seconds: int = Field(
         default=300, description="Check interval in seconds (default: 5 minutes)"
     )
     enabled: bool = Field(default=True, description="Whether monitoring is enabled")
+
+    @field_validator("user_instructions")
+    @classmethod
+    def validate_user_instructions(cls, v: str) -> str:
+        """Validate user instructions are reasonable."""
+        v = v.strip()
+        if not v:
+            raise ValueError("user_instructions cannot be empty")
+        if len(v) < 10:
+            raise ValueError(
+                "user_instructions too short - please provide clear instructions"
+            )
+        if len(v) > 1000:
+            raise ValueError(
+                "user_instructions too long - please keep under 1000 characters"
+            )
+        return v

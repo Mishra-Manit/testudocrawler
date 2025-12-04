@@ -6,7 +6,7 @@ An intelligent automation agent that monitors the University of Maryland's Testu
 
 - **Intelligent Scraping**: Uses Playwright to extract raw text from Testudo pages
 - **AI Analysis**: Leverages Claude Haiku via Pydantic AI to semantically parse seat availability
-- **SMS Notifications**: Sends instant SMS alerts via Twilio when seats become available
+- **WhatsApp Notifications**: Sends instant WhatsApp alerts via Twilio when seats become available
 - **Automatic Monitoring**: Scheduler-based runner that checks courses every 5 minutes (configurable)
 - **Resilient**: Handles Testudo errors gracefully without crashing
 - **Structured Logging**: Comprehensive logging with timestamps and context
@@ -16,7 +16,7 @@ An intelligent automation agent that monitors the University of Maryland's Testu
 - **Backend**: Python 3.11+ with asyncio scheduler
 - **Web Scraping**: Playwright (Headless Chromium)
 - **AI Analysis**: Pydantic AI + Claude 3 Haiku (Anthropic)
-- **Notifications**: Twilio SMS
+- **Notifications**: Twilio WhatsApp
 - **Configuration**: Pydantic Settings + YAML
 - **Logging**: structlog for structured logging
 
@@ -32,7 +32,7 @@ professoralet/
 │   └── services/
 │       ├── scraper.py               # Playwright scraping
 │       ├── ai_agent.py              # AI analysis for seat availability
-│       └── notification.py          # SMS notifications
+│       └── notification.py          # WhatsApp notifications
 ├── config/
 │   └── courses.yaml                 # Course configuration
 ├── docs/
@@ -88,11 +88,11 @@ Create a `.env` file:
 ANTHROPIC_API_KEY=sk-ant-xxxxx
 ANTHROPIC_MODEL=claude-3-haiku-20240307
 
-# Twilio Configuration
+# Twilio WhatsApp Configuration
 TWILIO_ACCOUNT_SID=ACxxxxx
 TWILIO_AUTH_TOKEN=xxxxx
-TWILIO_PHONE_NUMBER=+1234567890
-RECIPIENT_PHONE_NUMBER=+1234567890
+TWILIO_WHATSAPP_NUMBER=+14155238886  # Twilio Sandbox WhatsApp number
+RECIPIENT_WHATSAPP_NUMBER=+1234567890  # Your WhatsApp number
 
 # Application Settings
 DEBUG=False
@@ -100,7 +100,20 @@ LOG_LEVEL=INFO
 SCRAPER_TIMEOUT=30
 ```
 
-### Step 6: Configure Courses
+### Step 6: Join Twilio WhatsApp Sandbox
+
+Before you can receive WhatsApp notifications, you need to join the Twilio WhatsApp Sandbox:
+
+1. Go to [Twilio WhatsApp Sandbox](https://console.twilio.com/us1/develop/sms/try-it-out/whatsapp-learn)
+2. You'll see a sandbox number (e.g., `+1 415 523 8886`) and a join code (e.g., `join <code>`)
+3. Open WhatsApp on your phone and send the join message to the sandbox number
+4. You'll receive a confirmation message from Twilio
+5. Copy the sandbox number and use it as `TWILIO_WHATSAPP_NUMBER` in your `.env` file
+6. Use your own WhatsApp number as `RECIPIENT_WHATSAPP_NUMBER`
+
+**Note**: The sandbox is free and perfect for personal use. Each user needs to join their own sandbox.
+
+### Step 7: Configure Courses
 
 Edit `config/courses.yaml`:
 
@@ -130,11 +143,11 @@ python app/runner.py
 ```
 
 The application will:
-1. Initialize all services (Scraper, AI Agent, Notification)
+1. Initialize all services (Scraper, AI Agent, WhatsApp Notification)
 2. Load course configurations
 3. Start monitoring each enabled course at its configured interval
 4. Automatically check for seat availability
-5. Send SMS alerts when seats become available
+5. Send WhatsApp alerts when seats become available
 
 ### Stopping the Application
 
@@ -144,7 +157,7 @@ Press `Ctrl+C` to gracefully shutdown the application.
 
 1. **The Scraper (Agent 1)**: Accesses pre-filtered Testudo URLs using Playwright, handles dynamic loading, and extracts clean text
 2. **The Analyst (Agent 2)**: Processes the raw text using Claude Haiku to determine if "Open" seat counts are greater than 0. Returns structured JSON
-3. **The Notifier**: If seats are available, triggers immediate SMS via Twilio with specific section numbers
+3. **The Notifier**: If seats are available, triggers immediate WhatsApp alert via Twilio with specific section numbers
 
 ## Configuration
 
@@ -156,8 +169,8 @@ Press `Ctrl+C` to gracefully shutdown the application.
 | `ANTHROPIC_MODEL` | No | Claude model to use | `claude-3-haiku-20240307` |
 | `TWILIO_ACCOUNT_SID` | Yes | Twilio Account SID | - |
 | `TWILIO_AUTH_TOKEN` | Yes | Twilio Auth Token | - |
-| `TWILIO_PHONE_NUMBER` | Yes | Twilio phone number (from) | - |
-| `RECIPIENT_PHONE_NUMBER` | Yes | Recipient phone number | - |
+| `TWILIO_WHATSAPP_NUMBER` | Yes | Twilio Sandbox WhatsApp number | - |
+| `RECIPIENT_WHATSAPP_NUMBER` | Yes | Your WhatsApp number | - |
 | `DEBUG` | No | Debug mode | `False` |
 | `LOG_LEVEL` | No | Logging level | `INFO` |
 | `SCRAPER_TIMEOUT` | No | Scraping timeout (seconds) | `30` |
@@ -167,7 +180,7 @@ Press `Ctrl+C` to gracefully shutdown the application.
 ```yaml
 targets:
   - id: string                # Unique course identifier
-    name: string              # Course name (used in SMS)
+    name: string              # Course name (used in WhatsApp alerts)
     url: string               # Full Testudo URL with filters
     interval: integer         # Check interval in seconds (default: 300)
     enabled: boolean          # Whether to monitor this course
@@ -175,9 +188,9 @@ targets:
 
 See [docs/configuration.md](docs/configuration.md) for detailed configuration guide.
 
-## SMS Alert Format
+## WhatsApp Alert Format
 
-When seats become available, you'll receive an SMS:
+When seats become available, you'll receive a WhatsApp message:
 
 ```
 🚨 UMD ALERT: CMSC216 (Kauffman) has open seats!
@@ -223,12 +236,13 @@ playwright install-deps
 playwright install chromium --force
 ```
 
-### SMS Not Sending
+### WhatsApp Messages Not Sending
 
-1. Verify Twilio credentials in `.env`
-2. Check phone numbers are in E.164 format (+1234567890)
-3. Verify Twilio account has sufficient credits
-4. Check logs for Twilio API errors
+1. Verify you've joined the Twilio WhatsApp Sandbox (see Setup Step 6)
+2. Check Twilio credentials in `.env`
+3. Verify phone numbers are in E.164 format (+1234567890)
+4. Ensure `TWILIO_WHATSAPP_NUMBER` is the correct sandbox number
+5. Check logs for Twilio API errors
 
 ### Scraping Failures
 
@@ -251,12 +265,12 @@ See [docs/architecture.md](docs/architecture.md) for detailed architecture docum
 
 - **ScraperService**: Browser automation with Playwright, extracts and cleans text
 - **AIAgentService**: Semantic parsing of seat availability using Claude Haiku
-- **NotificationService**: SMS delivery via Twilio with retry logic
+- **NotificationService**: WhatsApp message delivery via Twilio with retry logic
 - **Runner**: Scheduler that orchestrates monitoring loops for each course
 
 ## Performance
 
-- **Latency**: Scrape → AI → SMS loop completes in < 20 seconds
+- **Latency**: Scrape → AI → WhatsApp loop completes in < 20 seconds
 - **Accuracy**: Distinguishes between `Open: 0` (Unavailable) and `Open: 1` (Available)
 - **Resilience**: Handles Testudo 502/503 errors gracefully
 
@@ -304,8 +318,8 @@ For issues and questions:
 - [Playwright](https://playwright.dev/) - Browser automation
 - [Pydantic AI](https://ai.pydantic.dev/) - AI agent framework
 - [Anthropic](https://www.anthropic.com/) - Claude AI models
-- [Twilio](https://www.twilio.com/) - SMS delivery
+- [Twilio](https://www.twilio.com/) - WhatsApp messaging
 
 ---
 
-**Built with Python, Playwright, Claude AI, and Twilio**
+**Built with Python, Playwright, Claude AI, and Twilio WhatsApp**

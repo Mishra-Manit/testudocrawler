@@ -1,0 +1,54 @@
+# Render Blueprint for Testudo Watchdog
+# This file enables one-click deployment to Render
+# Documentation: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: testudo-watchdog
+    runtime: python
+    region: oregon  # Choose your preferred region
+    plan: free  # Free tier
+    branch: main  # Deploy from main branch
+
+    # Build configuration
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      playwright install chromium
+      playwright install-deps
+
+    # Start command - runs the FastAPI web service
+    startCommand: python -m uvicorn app.web:app --host 0.0.0.0 --port 10000
+
+    # Health check configuration
+    healthCheckPath: /health
+
+    # Environment variables
+    # IMPORTANT: You must set these in the Render dashboard for security
+    envVars:
+      - key: PORT
+        value: 10000
+
+      - key: ANTHROPIC_API_KEY
+        sync: false  # Must be set manually in Render dashboard
+
+      - key: ANTHROPIC_MODEL
+        value: claude-3-5-sonnet-20241022
+
+      - key: TWILIO_ACCOUNT_SID
+        sync: false  # Must be set manually in Render dashboard
+
+      - key: TWILIO_AUTH_TOKEN
+        sync: false  # Must be set manually in Render dashboard
+
+      - key: TWILIO_PHONE_NUMBER
+        sync: false  # Must be set manually in Render dashboard
+
+      - key: RECIPIENT_PHONE_NUMBER
+        sync: false  # Must be set manually in Render dashboard
+
+      - key: SCRAPER_TIMEOUT
+        value: 30
+
+      - key: LOGFIRE_TOKEN
+        sync: false  # Optional: set if you want Logfire observability

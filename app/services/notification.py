@@ -1,6 +1,6 @@
 """
-Notification service for sending SMS alerts via Twilio.
-Handles async SMS delivery, formatting, and error handling.
+Notification service for sending WhatsApp alerts via Twilio.
+Handles async WhatsApp delivery, formatting, and error handling.
 """
 
 import asyncio
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class NotificationService:
-    """Service for sending SMS notifications via Twilio."""
+    """Service for sending WhatsApp notifications via Twilio."""
 
     def __init__(
         self,
@@ -31,11 +31,11 @@ class NotificationService:
         Args:
             account_sid: Twilio Account SID
             auth_token: Twilio Auth Token
-            from_number: Phone number to send SMS from
+            from_number: WhatsApp number to send messages from (Twilio Sandbox)
         """
         self.client = Client(account_sid, auth_token)
-        self.from_number = from_number
-        logger.info("Notification service initialized")
+        self.from_number = from_number if from_number.startswith('whatsapp:') else f'whatsapp:{from_number}'
+        logger.info("WhatsApp notification service initialized")
 
     async def send_sms(
         self,
@@ -44,20 +44,22 @@ class NotificationService:
         max_retries: int = 3,
     ) -> NotificationResult:
         """
-        Send SMS asynchronously with retry logic.
+        Send WhatsApp message asynchronously with retry logic.
 
         Args:
-            to_number: Recipient phone number
+            to_number: Recipient WhatsApp number
             message: Message content
             max_retries: Maximum number of retry attempts
 
         Returns:
             NotificationResult with delivery status
         """
+        whatsapp_to = to_number if to_number.startswith('whatsapp:') else f'whatsapp:{to_number}'
+
         for attempt in range(1, max_retries + 1):
             try:
                 logger.info(
-                    f"Sending SMS to {to_number} "
+                    f"Sending WhatsApp message to {to_number} "
                     f"(attempt {attempt}/{max_retries})"
                 )
 
@@ -66,14 +68,14 @@ class NotificationService:
                 twilio_message = await loop.run_in_executor(
                     None,
                     lambda: self.client.messages.create(
-                        to=to_number,
+                        to=whatsapp_to,
                         from_=self.from_number,
                         body=message,
                     ),
                 )
 
                 logger.info(
-                    f"SMS sent successfully to {to_number} "
+                    f"WhatsApp message sent successfully to {to_number} "
                     f"(SID: {twilio_message.sid})"
                 )
 
@@ -134,24 +136,50 @@ class NotificationService:
         course_name: str,
         availability: AvailabilityCheck,
         course_url: str,
+        custom_message: Optional[str] = None,
     ) -> list[NotificationResult]:
         """
-        Send seat availability alert to multiple recipients.
+        Send seat availability alert to multiple recipients with optional custom message.
 
         Args:
             recipients: List of phone numbers to notify
             course_name: Name of the course
             availability: Availability check results
             course_url: URL to the course registration page
+            custom_message: Optional custom message template with {course_name}, {sections}, {course_url} variables
 
         Returns:
             List of NotificationResult for each recipient
         """
-        message = self._format_availability_alert(
-            course_name=course_name,
-            availability=availability,
-            course_url=course_url,
-        )
+        # Use custom message if provided, otherwise use default format
+        if custom_message:
+            # Build sections string
+            available_sections = [
+                s.section_id for s in availability.sections if s.open_seats > 0
+            ]
+            sections_str = ", ".join(available_sections) if available_sections else "N/A"
+
+            try:
+                # Replace template variables
+                message = custom_message.format(
+                    course_name=course_name,
+                    sections=sections_str,
+                    course_url=course_url
+                )
+            except (KeyError, ValueError) as e:
+                # Fallback to default format if custom message has issues
+                logger.warning(f"Custom message format error: {e}, using default format")
+                message = self._format_availability_alert(
+                    course_name=course_name,
+                    availability=availability,
+                    course_url=course_url,
+                )
+        else:
+            message = self._format_availability_alert(
+                course_name=course_name,
+                availability=availability,
+                course_url=course_url,
+            )
 
         logger.info(
             f"Sending availability alert to {len(recipients)} recipients: {course_name}"
@@ -199,7 +227,7 @@ class NotificationService:
             course_url: URL to the course page
 
         Returns:
-            Formatted SMS message
+            Formatted WhatsApp message
         """
         # Extract section numbers with open seats
         available_sections = [
@@ -218,25 +246,3 @@ class NotificationService:
         )
 
         return message
-
-    async def test_connection(self) -> bool:
-        """
-        Test Twilio API connection without sending SMS.
-
-        Returns:
-            True if connection successful, False otherwise
-        """
-        try:
-            # Validate credentials by fetching account info
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                None,
-                lambda: self.client.api.accounts(
-                    self.client.account_sid
-                ).fetch(),
-            )
-            logger.info("Twilio connection test successful")
-            return True
-        except Exception as e:
-            logger.error(f"Twilio connection test failed: {e}")
-            return False
