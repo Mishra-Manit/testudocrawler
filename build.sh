@@ -16,7 +16,7 @@ pip install -r requirements.txt
 
 # 3. Install Playwright browsers with system dependencies
 echo "Step 3/4: Installing Playwright Chromium with system dependencies..."
-python -m playwright install --with-deps chromium
+python -m playwright install chromium
 
 # 4. Verify installation
 echo "Step 4/4: Verifying Playwright installation..."
