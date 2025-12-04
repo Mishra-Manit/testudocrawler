@@ -15,7 +15,6 @@ services:
       pip install --upgrade pip
       pip install -r requirements.txt
       playwright install chromium
-      playwright install-deps
 
     # Start command - runs the FastAPI web service
     startCommand: python -m uvicorn app.web:app --host 0.0.0.0 --port 10000
