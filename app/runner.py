@@ -175,20 +175,54 @@ class TestudoWatchdog:
 
             try:
                 # Step 1: Scrape the course page
+                with logfire.span(
+                    "scraping_started",
+                    course_id=course.id,
+                    course_name=course.name,
+                    url=course.url,
+                ):
+                    logger.info(
+                        "Scraping started",
+                        course_id=course.id,
+                        url=course.url,
+                    )
+
                 scrape_result = await self.scraper.scrape_page(course.url)
                 page_text = scrape_result["text"]
-                logger.info(
-                    "Scraping complete",
+
+                with logfire.span(
+                    "scraping_completed",
                     course_id=course.id,
                     text_length=len(page_text),
-                )
+                ):
+                    logger.info(
+                        "Scraping complete",
+                        course_id=course.id,
+                        text_length=len(page_text),
+                    )
 
                 # Step 2: Analyze with AI agent using user instructions
-                availability = await self.ai_agent.check_availability(
-                    raw_text=page_text,
+                with logfire.span(
+                    "starting_agent_work",
+                    course_id=course.id,
                     course_name=course.name,
-                    user_instructions=course.user_instructions,
-                )
+                ):
+                    logger.info(
+                        "Starting agent work",
+                        course_id=course.id,
+                        course_name=course.name,
+                    )
+
+                with logfire.span(
+                    "agent_analysis",
+                    course_id=course.id,
+                    course_name=course.name,
+                ):
+                    availability = await self.ai_agent.check_availability(
+                        raw_text=page_text,
+                        course_name=course.name,
+                        user_instructions=course.user_instructions,
+                    )
 
                 logger.info(
                     "AI analysis complete",
@@ -215,13 +249,19 @@ class TestudoWatchdog:
                         sections=[s.section_id for s in availability.sections if s.open_seats > 0]
                     )
 
-                    notification_results = await self.notification.send_availability_alert(
-                        recipients=[self.settings.recipient_whatsapp_number],
+                    with logfire.span(
+                        "sending_notification",
+                        course_id=course.id,
                         course_name=course.name,
-                        availability=availability,
-                        course_url=course.url,
-                        custom_message=course.notification_message,
-                    )
+                        recipient=self.settings.recipient_whatsapp_number,
+                    ):
+                        notification_results = await self.notification.send_availability_alert(
+                            recipients=[self.settings.recipient_whatsapp_number],
+                            course_name=course.name,
+                            availability=availability,
+                            course_url=course.url,
+                            custom_message=course.notification_message,
+                        )
 
                     successful_notifications = sum(
                         1 for r in notification_results if r.success
@@ -233,11 +273,16 @@ class TestudoWatchdog:
                         total=len(notification_results),
                     )
                 else:
-                    logger.info(
-                        "Condition not met",
+                    with logfire.span(
+                        "message_not_sent",
                         course_id=course.id,
-                        course_name=course.name,
-                    )
+                        reason="Agent returned false - condition not met",
+                    ):
+                        logger.info(
+                            "Condition not met",
+                            course_id=course.id,
+                            course_name=course.name,
+                        )
 
                 # Update last check time
                 self.last_check_times[course.id] = datetime.utcnow()

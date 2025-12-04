@@ -107,7 +107,7 @@ Remember: Your analysis should directly address what the user asked for in their
             result = await self.agent.run(prompt)
 
             # Extract the structured data
-            availability_check = result.data
+            availability_check = result.output
 
             logger.info(
                 f"Analysis complete: "
