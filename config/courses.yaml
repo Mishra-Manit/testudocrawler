@@ -9,3 +9,10 @@ targets:
     notification_message: "🚨 CMSC216 ALERT: Kauffman has seats!\nSections: {sections}\n{course_url}"
     interval: 300  # Check every 5 minutes (300 seconds)
     enabled: true
+  # - id: "cmsc216_herman"
+  #   name: "CMSC216 (Herman)"
+  #   url: "https://app.testudo.umd.edu/soc/search?courseId=CMSC216&sectionId=&termId=202601&_openSectionsOnly=on&creditCompare=%3E%3D&credits=0.0&courseLevelFilter=ALL&instructor=Herman%2C+Larry&_facetoface=on&_blended=on&_online=on&courseStartCompare=&courseStartHour=&courseStartMin=&courseStartAM=&courseEndHour=&courseEndMin=&courseEndAM=&teachingCenter=ALL&_classDay1=on&_classDay2=on&_classDay3=on&_classDay4=on&_classDay5=on"
+  #   user_instructions: "Check Larry Herman's CMSC216 sections for open seats and text me which sections are available along with their open seat counts."
+  #   notification_message: "📱 CMSC216 Herman open seats!\nSections: {sections}\n{course_url}"
+  #   interval: 300  # Check every 5 minutes (300 seconds)
+  #   enabled: true

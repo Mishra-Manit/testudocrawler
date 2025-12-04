@@ -21,6 +21,23 @@ class Settings(BaseSettings):
         default="claude-3-haiku-20240307", alias="ANTHROPIC_MODEL"
     )
 
+    # AI Provider Configuration
+    ai_provider: str = Field(
+        default="anthropic",
+        alias="AI_PROVIDER",
+        description="AI provider to use: 'anthropic' or 'openai'"
+    )
+
+    # OpenAI API Configuration (only used if ai_provider='openai')
+    openai_api_key: Optional[str] = Field(
+        default=None,
+        alias="OPENAI_API_KEY"
+    )
+    openai_model: str = Field(
+        default="gpt-5-nano",
+        alias="OPENAI_MODEL"
+    )
+
     # Twilio WhatsApp Configuration
     twilio_account_sid: str = Field(..., alias="TWILIO_ACCOUNT_SID")
     twilio_auth_token: str = Field(..., alias="TWILIO_AUTH_TOKEN")
@@ -57,6 +74,24 @@ class Settings(BaseSettings):
         v = v.upper()
         if v not in valid_levels:
             raise ValueError(f"Log level must be one of {valid_levels}")
+        return v
+
+    @field_validator("ai_provider")
+    @classmethod
+    def validate_ai_provider(cls, v: str) -> str:
+        """Validate AI provider is either 'anthropic' or 'openai'."""
+        v = v.lower()
+        if v not in ["anthropic", "openai"]:
+            raise ValueError("AI_PROVIDER must be 'anthropic' or 'openai'")
+        return v
+
+    @field_validator("openai_api_key")
+    @classmethod
+    def validate_openai_key(cls, v: Optional[str], info) -> Optional[str]:
+        """Validate OpenAI API key is provided when using OpenAI provider."""
+        ai_provider = info.data.get("ai_provider", "anthropic")
+        if ai_provider == "openai" and not v:
+            raise ValueError("OPENAI_API_KEY is required when AI_PROVIDER='openai'")
         return v
 
     def load_courses_config(self) -> dict[str, Any]:

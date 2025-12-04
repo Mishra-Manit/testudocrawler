@@ -8,7 +8,9 @@ from typing import Optional
 
 from pydantic_ai import Agent
 from pydantic_ai.models.anthropic import AnthropicModel
+from pydantic_ai.models.openai import OpenAIResponsesModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
+from pydantic_ai.providers.openai import OpenAIProvider
 
 from app.models.schemas import AvailabilityCheck
 
@@ -20,30 +22,40 @@ class AIAgentService:
 
     def __init__(
         self,
+        provider: str,
         api_key: str,
         model: str
     ):
         """
-        Initialize AI agent service.
+        Initialize AI agent service with configurable provider.
 
         Args:
-            api_key: Anthropic API key
-            model: Model to use. Set in .env file.
+            provider: AI provider to use ('anthropic' or 'openai')
+            api_key: API key for the selected provider
+            model: Model name to use
         """
+        self.provider = provider
         self.api_key = api_key
         self.model = model
 
+        # Create provider-specific model based on configuration
+        if provider == "anthropic":
+            provider_instance = AnthropicProvider(api_key=api_key)
+            model_instance = AnthropicModel(model, provider=provider_instance)
+        elif provider == "openai":
+            provider_instance = OpenAIProvider(api_key=api_key)
+            model_instance = OpenAIResponsesModel(model, provider=provider_instance)
+        else:
+            raise ValueError(f"Unsupported AI provider: {provider}")
+
         # Create Pydantic AI agent with structured output
-        # Pass the API key explicitly to the AnthropicProvider
-        provider = AnthropicProvider(api_key=api_key)
-        anthropic_model = AnthropicModel(model, provider=provider)
         self.agent = Agent(
-            anthropic_model,
+            model_instance,
             output_type=AvailabilityCheck,
             system_prompt=self._build_system_prompt(),
         )
 
-        logger.info(f"AI agent initialized with model: {model}")
+        logger.info(f"AI agent initialized with provider={provider}, model={model}")
 
     def _build_system_prompt(self) -> str:
         """Build the generic system prompt for the AI agent."""

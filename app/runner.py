@@ -72,8 +72,17 @@ class TestudoWatchdog:
             # Initialize AI Agent Service
             logger.info("Initializing AI Agent Service...")
             self.ai_agent = AIAgentService(
-                api_key=self.settings.anthropic_api_key,
-                model=self.settings.anthropic_model,
+                provider=self.settings.ai_provider,
+                api_key=(
+                    self.settings.anthropic_api_key
+                    if self.settings.ai_provider == "anthropic"
+                    else self.settings.openai_api_key
+                ),
+                model=(
+                    self.settings.anthropic_model
+                    if self.settings.ai_provider == "anthropic"
+                    else self.settings.openai_model
+                ),
             )
             logger.info("AI Agent Service initialized successfully")
 
