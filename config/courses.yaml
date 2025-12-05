@@ -1,5 +1,15 @@
 # Course Monitoring Configuration
-# Define what you want to monitor for each course
+# Each target defines a course to monitor with its own settings.
+#
+# Fields:
+#   id          - Unique identifier for the course
+#   name        - Display name (used in notifications)
+#   url         - Testudo URL with filters applied
+#   user_instructions - What to check (AI prompt)
+#   notification_message - Custom message template (optional)
+#   interval    - Check frequency in seconds (default: 300)
+#   enabled     - Enable/disable monitoring (default: true)
+#   recipients  - Per-course WhatsApp recipients (optional, falls back to global)
 
 targets:
   - id: "cmsc216_spring26"
@@ -7,5 +17,8 @@ targets:
     url: "https://app.testudo.umd.edu/soc/search?courseId=CMSC216&sectionId=&termId=202601&_openSectionsOnly=on&creditCompare=&credits=&courseLevelFilter=ALL&instructor=Kauffman%2C+Christopher&_facetoface=on&_blended=on&_online=on&courseStartCompare=&courseStartHour=&courseStartMin=&courseStartAM=&courseEndHour=&courseEndMin=&courseEndAM=&teachingCenter=ALL&_classDay1=on&_classDay2=on&_classDay3=on&_classDay4=on&_classDay5=on"
     user_instructions: "Check if there are any open seats available for Professor Kauffman's CMSC216 sections. Look for sections where the 'Open' seat count is greater than 0."
     notification_message: "🚨 CMSC216 ALERT: Kauffman has seats!\nSections: {sections}\n{course_url}"
-    interval: 300  # Check every 5 minutes (300 seconds)
+    interval: 300
     enabled: true
+    # recipients:  # Uncomment to override global recipient
+    #   - "+12025551234"
+    #   - "+12025555678"

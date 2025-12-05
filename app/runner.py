@@ -150,9 +150,11 @@ class TestudoWatchdog:
                     notification_message=target.get("notification_message"),
                     check_interval_seconds=target.get("interval", 300),
                     enabled=target.get("enabled", True),
+                    recipients=target.get("recipients"),
                 )
                 courses.append(course)
-                logger.info(f"Loaded course: {course.id} with custom instructions")
+                recipient_info = f"{len(course.recipients)} recipients" if course.recipients else "global fallback"
+                logger.info(f"Loaded course: {course.id} ({recipient_info})")
 
             except Exception as e:
                 logger.error(f"Failed to load course {target.get('id', 'unknown')}: {e}")
@@ -242,10 +244,26 @@ class TestudoWatchdog:
 
                 # Step 3: Send notifications if condition is met
                 if availability.is_available:
+                    # Determine recipients: per-course or global fallback
+                    recipients = course.recipients or (
+                        [self.settings.recipient_whatsapp_number]
+                        if self.settings.recipient_whatsapp_number
+                        else None
+                    )
+
+                    if not recipients:
+                        logger.error(
+                            "No recipients configured for course",
+                            course_id=course.id,
+                            course_name=course.name,
+                        )
+                        return
+
                     logger.warning(
                         "CONDITION MET!",
                         course_id=course.id,
                         course_name=course.name,
+                        recipient_count=len(recipients),
                         sections=[
                             s.section_id for s in availability.sections if s.open_seats > 0
                         ],
@@ -262,10 +280,10 @@ class TestudoWatchdog:
                         "sending_notification",
                         course_id=course.id,
                         course_name=course.name,
-                        recipient=self.settings.recipient_whatsapp_number,
+                        recipient_count=len(recipients),
                     ):
                         notification_results = await self.notification.send_availability_alert(
-                            recipients=[self.settings.recipient_whatsapp_number],
+                            recipients=recipients,
                             course_name=course.name,
                             availability=availability,
                             course_url=course.url,

@@ -77,6 +77,10 @@ class CourseConfig(BaseModel):
         default=300, description="Check interval in seconds (default: 5 minutes)"
     )
     enabled: bool = Field(default=True, description="Whether monitoring is enabled")
+    recipients: Optional[list[str]] = Field(
+        default=None,
+        description="WhatsApp recipients for this course. Falls back to global if not set."
+    )
 
     @field_validator("user_instructions")
     @classmethod
@@ -94,3 +98,17 @@ class CourseConfig(BaseModel):
                 "user_instructions too long - please keep under 1000 characters"
             )
         return v
+
+    @field_validator("recipients")
+    @classmethod
+    def validate_recipients(cls, v: Optional[list[str]]) -> Optional[list[str]]:
+        """Validate recipient phone numbers format."""
+        if v is None:
+            return None
+        validated = []
+        for phone in v:
+            phone = phone.strip()
+            if not phone.startswith("+"):
+                raise ValueError(f"Phone number must start with '+': {phone}")
+            validated.append(phone)
+        return validated
