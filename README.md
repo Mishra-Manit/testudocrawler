@@ -1,4 +1,4 @@
-# Testudo Watchdog
+# Testudo Crawler
 
 Monitors UMD Testudo course pages for seat availability and sends WhatsApp notifications.
 

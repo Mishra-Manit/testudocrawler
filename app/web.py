@@ -1,5 +1,5 @@
 """
-FastAPI web service wrapper for Testudo Watchdog.
+FastAPI web service wrapper for Testudo Crawler.
 Enables deployment on Render's free tier by providing HTTP endpoints.
 Includes Telegram bot webhook for /start command.
 """
@@ -16,28 +16,28 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.observability.logfire_config import initialize_logfire
-from app.runner import TestudoWatchdog, setup_signal_handlers
+from app.runner import TestudoCrawler, setup_signal_handlers
 
 logger = structlog.get_logger(__name__)
 
 # Background task reference
-watchdog_task: Optional[asyncio.Task] = None
-watchdog_instance: Optional[TestudoWatchdog] = None
+crawler_task: Optional[asyncio.Task] = None
+crawler_instance: Optional[TestudoCrawler] = None
 start_time: datetime = datetime.now(timezone.utc)
 
 
-async def run_watchdog_background():
-    """Run the watchdog application as a background task."""
-    global watchdog_instance
+async def run_crawler_background():
+    """Run the crawler application as a background task."""
+    global crawler_instance
 
-    logger.info("Starting Testudo Watchdog background service...")
+    logger.info("Starting Testudo Crawler background service...")
 
     try:
-        watchdog_instance = TestudoWatchdog()
-        setup_signal_handlers(watchdog_instance)
-        await watchdog_instance.start()
+        crawler_instance = TestudoCrawler()
+        setup_signal_handlers(crawler_instance)
+        await crawler_instance.start()
     except Exception as e:
-        logger.error("Watchdog background task failed", error=str(e), exc_info=True)
+        logger.error("Crawler background task failed", error=str(e), exc_info=True)
         raise
 
 
@@ -45,45 +45,45 @@ async def run_watchdog_background():
 async def lifespan(_app: FastAPI):
     """
     Manage application lifespan: startup and shutdown.
-    Starts the watchdog as a background task during startup.
+    Starts the crawler as a background task during startup.
     """
-    global watchdog_task, start_time
+    global crawler_task, start_time
 
     # Startup
     logger.info("FastAPI application starting...")
     initialize_logfire()
 
     start_time = datetime.now(timezone.utc)
-    
-    # Start watchdog background task
-    watchdog_task = asyncio.create_task(run_watchdog_background())
-    logger.info("Watchdog background task started")
+
+    # Start crawler background task
+    crawler_task = asyncio.create_task(run_crawler_background())
+    logger.info("Crawler background task started")
 
     yield
 
     # Shutdown
     logger.info("FastAPI application shutting down...")
 
-    if watchdog_instance:
-        watchdog_instance.running = False
+    if crawler_instance:
+        crawler_instance.running = False
 
-    if watchdog_task and not watchdog_task.done():
-        logger.info("Cancelling watchdog task...")
-        watchdog_task.cancel()
+    if crawler_task and not crawler_task.done():
+        logger.info("Cancelling crawler task...")
+        crawler_task.cancel()
         try:
-            await watchdog_task
+            await crawler_task
         except asyncio.CancelledError:
-            logger.info("Watchdog task cancelled successfully")
+            logger.info("Crawler task cancelled successfully")
 
-    if watchdog_instance:
-        await watchdog_instance.cleanup()
+    if crawler_instance:
+        await crawler_instance.cleanup()
 
     logger.info("Shutdown complete")
 
 
 # Initialize FastAPI app with lifespan
 app = FastAPI(
-    title="Testudo Watchdog Service",
+    title="Testudo Crawler Service",
     description="Course availability monitoring service with web endpoint for Render deployment",
     version="1.0.0",
     lifespan=lifespan,
@@ -101,7 +101,7 @@ async def root() -> JSONResponse:
     return JSONResponse(
         content={
             "status": "alive",
-            "service": "Testudo Watchdog",
+            "service": "Testudo Crawler",
             "uptime_seconds": round(uptime, 2),
             "message": "Course monitoring service is running",
         }
@@ -118,10 +118,10 @@ async def health_check() -> JSONResponse:
 
     # Check if background task is running
     task_status = "unknown"
-    if watchdog_task is None:
+    if crawler_task is None:
         task_status = "not_started"
-    elif watchdog_task.done():
-        if watchdog_task.exception():
+    elif crawler_task.done():
+        if crawler_task.exception():
             task_status = "failed"
         else:
             task_status = "completed"
@@ -139,11 +139,11 @@ async def health_check() -> JSONResponse:
     }
 
     # Include course monitoring stats if available
-    if watchdog_instance and watchdog_instance.last_check_times:
-        health_data["monitored_courses"] = len(watchdog_instance.last_check_times)
+    if crawler_instance and crawler_instance.last_check_times:
+        health_data["monitored_courses"] = len(crawler_instance.last_check_times)
         health_data["last_checks"] = {
             course_id: check_time.isoformat()
-            for course_id, check_time in watchdog_instance.last_check_times.items()
+            for course_id, check_time in crawler_instance.last_check_times.items()
         }
 
     response_status = status.HTTP_200_OK if is_healthy else status.HTTP_503_SERVICE_UNAVAILABLE

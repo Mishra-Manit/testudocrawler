@@ -1,5 +1,5 @@
 """
-Main runner for Testudo Watchdog.
+Main runner for Testudo Crawler.
 Scheduler-based application that automatically checks course availability.
 """
 
@@ -46,11 +46,11 @@ structlog.configure(
 logger = structlog.get_logger(__name__)
 
 
-class TestudoWatchdog:
-    """Main watchdog application that monitors course availability."""
+class TestudoCrawler:
+    """Main crawler application that monitors course availability."""
 
     def __init__(self):
-        """Initialize the watchdog application."""
+        """Initialize the crawler application."""
         self.settings = get_settings()
         self.scraper: Optional[ScraperService] = None
         self.ai_agent: Optional[AIAgentService] = None
@@ -62,12 +62,6 @@ class TestudoWatchdog:
     def is_within_check_window(self, course: CourseConfig) -> bool:
         """
         Check if current time is within the configured check window for a course.
-        
-        Args:
-            course: Course configuration with time window settings
-            
-        Returns:
-            True if current time is within the window, False otherwise
         """
         try:
             # Get timezone (defaults to America/New_York for EST/EDT)
@@ -96,7 +90,7 @@ class TestudoWatchdog:
 
     async def initialize(self) -> None:
         """Initialize all services."""
-        logger.info("Initializing Testudo Watchdog...")
+        logger.info("Initializing Testudo Crawler...")
 
         try:
             # Initialize Scraper Service
@@ -204,9 +198,6 @@ class TestudoWatchdog:
     async def check_course(self, course: CourseConfig) -> None:
         """
         Check a single course for seat availability.
-
-        Args:
-            course: Course configuration to check
         """
         with logfire.span(
             "course_check",
@@ -403,7 +394,7 @@ class TestudoWatchdog:
 
     async def run(self) -> None:
         """Run the main monitoring loop."""
-        logger.info("Starting Testudo Watchdog")
+        logger.info("Starting Testudo Crawler")
 
         # Load course configurations
         courses = self.load_course_configs()
@@ -432,7 +423,7 @@ class TestudoWatchdog:
             self.running = False
 
     async def start(self) -> None:
-        """Start the watchdog application."""
+        """Start the crawler application."""
         try:
             await self.initialize()
             await self.run()
@@ -445,12 +436,12 @@ class TestudoWatchdog:
             await self.cleanup()
 
 
-def setup_signal_handlers(watchdog: TestudoWatchdog) -> None:
+def setup_signal_handlers(crawler: TestudoCrawler) -> None:
     """Setup signal handlers for graceful shutdown."""
 
     def signal_handler(signum, frame):
         logger.info(f"Received signal {signum}, initiating shutdown...")
-        watchdog.running = False
+        crawler.running = False
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
@@ -461,11 +452,11 @@ async def main() -> None:
     # Initialize Logfire observability
     initialize_logfire()
 
-    watchdog = TestudoWatchdog()
-    setup_signal_handlers(watchdog)
+    crawler = TestudoCrawler()
+    setup_signal_handlers(crawler)
 
     try:
-        await watchdog.start()
+        await crawler.start()
     except Exception as e:
         logger.error("Application failed", error=str(e), exc_info=True)
         sys.exit(1)

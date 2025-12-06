@@ -54,7 +54,7 @@ def test_app_metadata():
 
 
 if __name__ == "__main__":
-    print("Testing Testudo Watchdog Web Service\n")
+    print("Testing Testudo Crawler Web Service\n")
     print("=" * 50)
 
     test_app_metadata()

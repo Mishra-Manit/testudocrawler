@@ -28,7 +28,7 @@ def initialize_logfire():
     # Configure Logfire
     logfire.configure(
         token=settings.logfire_token,
-        service_name="testudo-watchdog",
+        service_name="testudo-crawler",
     )
 
     # Auto-instrument pydantic-ai
