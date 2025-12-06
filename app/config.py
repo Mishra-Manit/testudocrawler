@@ -38,14 +38,12 @@ class Settings(BaseSettings):
         alias="OPENAI_MODEL"
     )
 
-    # Twilio WhatsApp Configuration
-    twilio_account_sid: str = Field(..., alias="TWILIO_ACCOUNT_SID")
-    twilio_auth_token: str = Field(..., alias="TWILIO_AUTH_TOKEN")
-    twilio_whatsapp_number: str = Field(..., alias="TWILIO_WHATSAPP_NUMBER")
-    recipient_whatsapp_number: Optional[str] = Field(
-        default=None,
-        alias="RECIPIENT_WHATSAPP_NUMBER",
-        description="Global fallback recipient. Required if no per-course recipients."
+    # Telegram Bot Configuration
+    telegram_bot_token: str = Field(..., alias="TELEGRAM_BOT_TOKEN")
+    telegram_chat_id: str = Field(
+        ...,
+        alias="TELEGRAM_CHAT_ID",
+        description="Default Telegram chat ID for notifications"
     )
 
     # Application Settings

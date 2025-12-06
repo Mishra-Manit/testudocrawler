@@ -39,16 +39,16 @@ class AvailabilityCheck(BaseModel):
 
 
 class NotificationResult(BaseModel):
-    """Result of SMS notification delivery."""
+    """Result of Telegram notification delivery."""
 
     success: bool = Field(
         description="Whether the notification was sent successfully"
     )
-    message_sid: Optional[str] = Field(
+    message_id: Optional[int] = Field(
         default=None,
-        description="Twilio message SID if successful",
+        description="Telegram message ID if successful",
     )
-    recipient: str = Field(description="Recipient phone number")
+    recipient: str = Field(description="Recipient chat ID")
     error: Optional[str] = Field(
         default=None,
         description="Error message if delivery failed",

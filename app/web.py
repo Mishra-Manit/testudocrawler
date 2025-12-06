@@ -1,6 +1,7 @@
 """
 FastAPI web service wrapper for Testudo Watchdog.
 Enables deployment on Render's free tier by providing HTTP endpoints.
+Includes Telegram bot webhook for /start command.
 """
 
 import asyncio
@@ -10,9 +11,12 @@ from datetime import datetime, timezone
 from typing import Dict, Optional
 
 import structlog
-from fastapi import FastAPI, status
+from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
+from telegram import Bot, Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 
+from app.config import get_settings
 from app.observability.logfire_config import initialize_logfire
 from app.runner import TestudoWatchdog, setup_signal_handlers
 
@@ -21,7 +25,22 @@ logger = structlog.get_logger(__name__)
 # Background task reference
 watchdog_task: Optional[asyncio.Task] = None
 watchdog_instance: Optional[TestudoWatchdog] = None
+telegram_app: Optional[Application] = None
 start_time: datetime = datetime.now(timezone.utc)
+
+
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /start command - returns the user's chat ID."""
+    chat_id = update.effective_chat.id
+    user_name = update.effective_user.first_name if update.effective_user else "there"
+    
+    await update.message.reply_text(
+        f"👋 Hello {user_name}!\n\n"
+        f"Your Chat ID is: <code>{chat_id}</code>\n\n"
+        f"Add this to your TELEGRAM_CHAT_ID environment variable to receive course alerts.",
+        parse_mode="HTML"
+    )
+    logger.info("Start command received", chat_id=chat_id, user_name=user_name)
 
 
 async def run_watchdog_background():
@@ -43,15 +62,32 @@ async def run_watchdog_background():
 async def lifespan(_app: FastAPI):
     """
     Manage application lifespan: startup and shutdown.
-    Starts the watchdog as a background task during startup.
+    Starts the watchdog and Telegram bot as background tasks during startup.
     """
-    global watchdog_task, start_time
+    global watchdog_task, telegram_app, start_time
 
     # Startup
     logger.info("FastAPI application starting...")
     initialize_logfire()
 
     start_time = datetime.now(timezone.utc)
+    
+    # Initialize Telegram bot for /start command
+    settings = get_settings()
+    telegram_app = (
+        Application.builder()
+        .token(settings.telegram_bot_token)
+        .build()
+    )
+    telegram_app.add_handler(CommandHandler("start", start_command))
+    
+    # Start Telegram bot polling in background
+    await telegram_app.initialize()
+    await telegram_app.start()
+    await telegram_app.updater.start_polling(drop_pending_updates=True)
+    logger.info("Telegram bot started polling for /start commands")
+    
+    # Start watchdog background task
     watchdog_task = asyncio.create_task(run_watchdog_background())
     logger.info("Watchdog background task started")
 
@@ -73,6 +109,14 @@ async def lifespan(_app: FastAPI):
 
     if watchdog_instance:
         await watchdog_instance.cleanup()
+
+    # Stop Telegram bot
+    if telegram_app:
+        logger.info("Stopping Telegram bot...")
+        await telegram_app.updater.stop()
+        await telegram_app.stop()
+        await telegram_app.shutdown()
+        logger.info("Telegram bot stopped")
 
     logger.info("Shutdown complete")
 

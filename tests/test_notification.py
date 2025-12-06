@@ -1,20 +1,17 @@
 """
 Test script for NotificationService.
-Demonstrates real Twilio WhatsApp integration by sending a test message.
+Demonstrates real Telegram integration by sending a test message.
 
 Usage:
     python tests/test_notification.py
 
 Requirements:
-    - Valid Twilio credentials in .env file
-    - Twilio WhatsApp Sandbox joined
-    - At least one recipient WhatsApp number configured
+    - Valid Telegram bot token in .env file
+    - Telegram chat ID configured
 
 Environment Variables:
-    TWILIO_ACCOUNT_SID: Twilio account identifier
-    TWILIO_AUTH_TOKEN: Twilio authentication token
-    TWILIO_WHATSAPP_NUMBER: Twilio Sandbox WhatsApp number
-    RECIPIENT_WHATSAPP_NUMBER: Recipient WhatsApp number
+    TELEGRAM_BOT_TOKEN: Telegram Bot API token
+    TELEGRAM_CHAT_ID: Chat ID to send messages to
 """
 
 import asyncio
@@ -37,47 +34,35 @@ logging.basicConfig(
 
 
 async def test_notification():
-    """Test the notification service and send a real WhatsApp message."""
+    """Test the notification service and send a real Telegram message."""
     # Load configuration from environment
     settings = get_settings()
 
-    # Validate recipient is configured
-    if not settings.recipient_whatsapp_number:
-        raise ValueError(
-            "No recipient WhatsApp number configured. "
-            "Set RECIPIENT_WHATSAPP_NUMBER in .env file."
-        )
-
-    # Use the recipient
-    test_recipient = settings.recipient_whatsapp_number
-
     print(f"\n{'='*60}")
-    print(f"Testing WhatsApp NotificationService")
-    print(f"From: {settings.twilio_whatsapp_number}")
-    print(f"To: {test_recipient}")
+    print(f"Testing Telegram NotificationService")
+    print(f"Chat ID: {settings.telegram_chat_id}")
     print(f"{'='*60}\n")
 
     # Initialize NotificationService
     notification_service = NotificationService(
-        account_sid=settings.twilio_account_sid,
-        auth_token=settings.twilio_auth_token,
-        from_number=settings.twilio_whatsapp_number,
+        bot_token=settings.telegram_bot_token,
+        default_chat_id=settings.telegram_chat_id,
     )
 
     try:
         # Prepare test message
         test_message = (
-            "TEST MESSAGE from UMD Professor Alert System\n"
-            "This is a test notification to verify Twilio WhatsApp integration.\n"
+            "🧪 <b>TEST MESSAGE</b> from UMD Professor Alert System\n\n"
+            "This is a test notification to verify Telegram integration.\n"
             f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
 
-        print(f"Sending test WhatsApp message...")
+        print(f"Sending test Telegram message...")
         print(f"Message:\n{test_message}\n")
 
-        # Send WhatsApp message
-        result = await notification_service.send_sms(
-            to_number=test_recipient,
+        # Send Telegram message
+        result = await notification_service.send_message(
+            chat_id=settings.telegram_chat_id,
             message=test_message
         )
 
@@ -88,7 +73,7 @@ async def test_notification():
 
         if result.success:
             print(f"✓ Status: SUCCESS")
-            print(f"Message SID: {result.message_sid}")
+            print(f"Message ID: {result.message_id}")
             print(f"Recipient: {result.recipient}")
             print(f"Sent At: {result.sent_at}")
         else:

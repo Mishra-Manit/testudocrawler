@@ -86,14 +86,13 @@ class TestudoWatchdog:
             )
             logger.info("AI Agent Service initialized successfully")
 
-            # Initialize WhatsApp Notification Service
-            logger.info("Initializing WhatsApp Notification Service...")
+            # Initialize Telegram Notification Service
+            logger.info("Initializing Telegram Notification Service...")
             self.notification = NotificationService(
-                account_sid=self.settings.twilio_account_sid,
-                auth_token=self.settings.twilio_auth_token,
-                from_number=self.settings.twilio_whatsapp_number,
+                bot_token=self.settings.telegram_bot_token,
+                default_chat_id=self.settings.telegram_chat_id,
             )
-            logger.info("WhatsApp Notification Service initialized successfully")
+            logger.info("Telegram Notification Service initialized successfully")
 
             logger.info("All services initialized successfully")
 
@@ -244,26 +243,10 @@ class TestudoWatchdog:
 
                 # Step 3: Send notifications if condition is met
                 if availability.is_available:
-                    # Determine recipients: per-course or global fallback
-                    recipients = course.recipients or (
-                        [self.settings.recipient_whatsapp_number]
-                        if self.settings.recipient_whatsapp_number
-                        else None
-                    )
-
-                    if not recipients:
-                        logger.error(
-                            "No recipients configured for course",
-                            course_id=course.id,
-                            course_name=course.name,
-                        )
-                        return
-
                     logger.warning(
                         "CONDITION MET!",
                         course_id=course.id,
                         course_name=course.name,
-                        recipient_count=len(recipients),
                         sections=[
                             s.section_id for s in availability.sections if s.open_seats > 0
                         ],
@@ -280,24 +263,19 @@ class TestudoWatchdog:
                         "sending_notification",
                         course_id=course.id,
                         course_name=course.name,
-                        recipient_count=len(recipients),
                     ):
-                        notification_results = await self.notification.send_availability_alert(
-                            recipients=recipients,
+                        notification_result = await self.notification.send_availability_alert(
                             course_name=course.name,
                             availability=availability,
                             course_url=course.url,
                             custom_message=course.notification_message,
                         )
 
-                    successful_notifications = sum(
-                        1 for r in notification_results if r.success
-                    )
                     logger.info(
-                        "Notifications sent",
+                        "Notification sent",
                         course_id=course.id,
-                        successful=successful_notifications,
-                        total=len(notification_results),
+                        success=notification_result.success,
+                        message_id=notification_result.message_id,
                     )
                 else:
                     with logfire.span(
