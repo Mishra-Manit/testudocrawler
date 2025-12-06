@@ -10,6 +10,7 @@ import sys
 import time
 from datetime import datetime
 from typing import Dict, Optional
+from zoneinfo import ZoneInfo
 
 import structlog
 
@@ -57,6 +58,41 @@ class TestudoWatchdog:
         self.running = False
         self.course_tasks: Dict[str, asyncio.Task] = {}
         self.last_check_times: Dict[str, datetime] = {}
+
+    def is_within_check_window(self, course: CourseConfig) -> bool:
+        """
+        Check if current time is within the configured check window for a course.
+        
+        Args:
+            course: Course configuration with time window settings
+            
+        Returns:
+            True if current time is within the window, False otherwise
+        """
+        try:
+            # Get timezone (defaults to America/New_York for EST/EDT)
+            tz = ZoneInfo(course.check_timezone)
+            current_time = datetime.now(tz)
+            current_hour = current_time.hour
+            
+            # If start_hour and end_hour are the same and both are None-like, disable check
+            if course.check_start_hour is None or course.check_end_hour is None:
+                return True
+            
+            # Simple case: start < end (e.g., 8 < 23)
+            if course.check_start_hour <= course.check_end_hour:
+                return course.check_start_hour <= current_hour < course.check_end_hour
+            
+            # Wrap-around case: start > end (e.g., 22 > 6, meaning 10PM-6AM)
+            return current_hour >= course.check_start_hour or current_hour < course.check_end_hour
+        except Exception as e:
+            logger.error(
+                "Error checking time window",
+                course_id=course.id,
+                error=str(e),
+            )
+            # On error, allow check (fail open for safety)
+            return True
 
     async def initialize(self) -> None:
         """Initialize all services."""
@@ -150,6 +186,9 @@ class TestudoWatchdog:
                     check_interval_seconds=target.get("interval", 300),
                     enabled=target.get("enabled", True),
                     recipients=target.get("recipients"),
+                    check_start_hour=target.get("check_start_hour", 8),
+                    check_end_hour=target.get("check_end_hour", 23),
+                    check_timezone=target.get("check_timezone", "America/New_York"),
                 )
                 courses.append(course)
                 recipient_info = f"{len(course.recipients)} recipients" if course.recipients else "global fallback"
@@ -323,11 +362,23 @@ class TestudoWatchdog:
             course_id=course.id,
             course_name=course.name,
             interval_seconds=course.check_interval_seconds,
+            check_window=f"{course.check_start_hour}:00-{course.check_end_hour}:00 {course.check_timezone}",
         )
 
         while self.running:
             try:
-                await self.check_course(course)
+                # Check if we're within the allowed time window
+                if self.is_within_check_window(course):
+                    await self.check_course(course)
+                else:
+                    tz = ZoneInfo(course.check_timezone)
+                    current_time = datetime.now(tz)
+                    logger.debug(
+                        "Outside check window, skipping",
+                        course_id=course.id,
+                        current_time=current_time.isoformat(),
+                        window=f"{course.check_start_hour}:00-{course.check_end_hour}:00",
+                    )
 
                 # Wait for the configured interval before next check
                 logger.debug(

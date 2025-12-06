@@ -81,6 +81,15 @@ class CourseConfig(BaseModel):
         default=None,
         description="WhatsApp recipients for this course. Falls back to global if not set."
     )
+    check_start_hour: int = Field(
+        default=8, description="Start hour (0-23) for checking. 8 = 8AM EST. Use null to disable time restrictions."
+    )
+    check_end_hour: int = Field(
+        default=23, description="End hour (0-23) for checking. 23 = 11PM EST. Checks must finish before this hour."
+    )
+    check_timezone: str = Field(
+        default="America/New_York", description="Timezone for checking hours (e.g. 'America/New_York' for EST/EDT)"
+    )
 
     @field_validator("user_instructions")
     @classmethod
