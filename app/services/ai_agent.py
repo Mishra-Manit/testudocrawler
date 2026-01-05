@@ -58,31 +58,84 @@ class AIAgentService:
         logger.info(f"AI agent initialized with provider={provider}, model={model}")
 
     def _build_system_prompt(self) -> str:
-        """Build the generic system prompt for the AI agent."""
-        return """You are an intelligent university course monitoring assistant.
+        """Build the generic system prompt for the AI agent.
+        
+        Uses latest prompt engineering best practices:
+        - Explicit output schema
+        - Chain-of-thought reasoning
+        - Error handling guidelines
+        - Strict validation rules
+        """
+        return """You are an intelligent university course monitoring assistant specialized in precise availability analysis.
 
-Your role is to analyze course registration pages and determine availability based on user-provided instructions.
+# PRIMARY ROLE
+Analyze course registration pages and determine seat availability based on exact user-provided instructions.
+Your output MUST be valid JSON matching the specified schema EVERY TIME.
 
-CAPABILITIES:
-- You receive raw text extracted from a university course page
-- You receive specific user instructions about what to check
-- Your job is to follow those instructions and determine if the condition is met
+# INPUT PARAMETERS
+- page_text: Raw text extracted from a university course registration page
+- user_instructions: Specific condition to check
+- course_name: Course context
 
-STRUCTURED OUTPUT:
-Always return:
-- is_available (bool): True if the user's condition is met, False otherwise
-- sections (list): Relevant sections with seat information (section_id, open_seats, total_seats, waitlist)
-- raw_text_summary (str): Brief explanation of what you found and why
+# REQUIRED OUTPUT SCHEMA (ALWAYS VALID JSON)
+Return ONLY this JSON structure, no additional text:
+{
+  "is_available": <boolean>,
+  "sections": [
+    {
+      "section_id": "<string>",
+      "open_seats": <integer>,
+      "total_seats": <integer>,
+      "waitlist": <integer>
+    }
+  ],
+  "raw_text_summary": "<string>"
+}
 
-ANALYSIS GUIDELINES:
-1. Carefully read the user's instructions
-2. Scan the page text for relevant information (look for patterns like "Seats (Total: X, Open: Y, Waitlist: Z)")
-3. Extract section numbers (typically 4 digits like 0201, 0202)
-4. Determine if the user's condition is satisfied
-5. Be precise - if data is ambiguous or missing, mark is_available as false
-6. Provide clear reasoning in raw_text_summary
+# FIELD SPECIFICATIONS
+- is_available: true ONLY if user's condition is unambiguously met. Default to false on any doubt.
+- sections: Array of section objects. EACH MUST have valid integer values.
+  - section_id: String like "0201", "0202" (typically 4 digits)
+  - open_seats: Non-negative integer
+  - total_seats: Positive integer > open_seats (when available)
+  - waitlist: Non-negative integer, default 0 if not found
+- raw_text_summary: Brief explanation (1-3 sentences) of findings
 
-Remember: Your analysis should directly address what the user asked for in their instructions.
+# ANALYSIS PROCEDURE (THINK STEP-BY-STEP)
+1. [PARSE] Extract the user's condition from instructions. Define success criteria.
+2. [SCAN] Search page text for section identifiers and seat patterns.
+   - Look for: "Seats (Total: X, Open: Y)", "Available: N", section numbers
+3. [EXTRACT] For each relevant section found:
+   - Record section_id (4-digit code typically)
+   - Extract open_seats and total_seats as integers
+   - Extract waitlist count if present, else use 0
+4. [EVALUATE] Check if user's condition is satisfied:
+   - "Seats available in any section" → is_available = (max(open_seats) > 0)
+   - "Specific section available" → check that section
+   - Ambiguous/missing data → is_available = false
+5. [VALIDATE] Verify all output:
+   - is_available is boolean
+   - All integers are valid numbers
+   - section_id is non-empty string
+   - summary is clear and factual
+
+# CRITICAL RULES FOR JSON OUTPUT
+✓ ALWAYS output valid JSON only
+✓ ALWAYS include all required fields
+✓ NEVER add fields not in schema
+✓ NEVER wrap output in markdown code blocks
+✓ NEVER include explanatory text before/after JSON
+✓ integers must be numbers, not strings
+✓ booleans must be true/false (lowercase), not "True"/"False"
+✓ Empty sections list is valid: []
+✓ When data is missing/ambiguous: is_available = false, empty sections list
+
+# ERROR HANDLING
+- If page text is empty/missing: return is_available=false
+- If user instructions are unclear: return is_available=false
+- If section numbers can't be parsed: skip those sections
+- If seat counts are non-numeric: mark is_available=false
+- ALWAYS return valid JSON even when processing fails
 """
 
     async def check_availability(
@@ -144,7 +197,14 @@ Remember: Your analysis should directly address what the user asked for in their
         course_name: Optional[str] = None,
         user_instructions: Optional[str] = None,
     ) -> str:
-        """Build the analysis prompt with user instructions."""
+        """Build the analysis prompt with user instructions.
+        
+        Hardened for reliable JSON output using latest prompt engineering practices:
+        - Explicit instruction order
+        - Clear field validation
+        - JSON schema reference
+        - Conditional logic chains
+        """
         # Truncate page text if too long (Claude Haiku context limits)
         max_text_length = 15000  # Keep reasonable for Haiku
         if len(raw_text) > max_text_length:
@@ -156,35 +216,85 @@ Remember: Your analysis should directly address what the user asked for in their
 
         course_context = f"Course: {course_name}\n" if course_name else ""
 
-        # Include user instructions prominently
-        instructions_section = f"""
-USER INSTRUCTIONS:
+        # Include user instructions prominently with emphasis
+        instructions_section = f"""# USER'S CONDITION (MUST EVALUATE THIS)
 {user_instructions}
 
-Your task is to follow the above instructions and determine if the condition is met.
-""" if user_instructions else """
-ERROR: No user instructions provided. Unable to analyze.
+**This is the ONLY condition that matters. Your is_available value MUST reflect whether this is satisfied.**
+""" if user_instructions else """# ERROR: NO USER INSTRUCTIONS
+Cannot proceed without user instructions. Return is_available=false.
 """
 
-        prompt = f"""Analyze this course registration page text.
+        prompt = f"""{course_context}
+# TASK: Analyze course registration page and determine seat availability
 
-{course_context}
 {instructions_section}
 
-**PAGE CONTENT:**
+## PAGE CONTENT TO ANALYZE:
 {raw_text}
 
 ---
 
-ANALYSIS STEPS:
-1. Read and understand what the user wants to check
-2. Scan the page content for relevant section information
-3. Look for seat availability patterns
-4. Extract section IDs and their seat counts
-5. Determine if the user's condition is satisfied
-6. Provide structured output with is_available, sections, and a clear summary
+# EXECUTION PLAN (FOLLOW EXACTLY)
 
-Set is_available=true ONLY if the user's condition is clearly met.
+## Step 1: UNDERSTAND THE CONDITION
+State what success looks like for this analysis:
+- What must be true for is_available to be true?
+- What specific data points matter?
+
+## Step 2: LOCATE SECTION DATA
+Search the page text for:
+- Section identifiers (usually 4-digit codes like 0201, 0202, 1001)
+- Seat information patterns: "Open: X", "Available: Y", "Seats: X/Y"
+- Waitlist counts if present
+
+## Step 3: EXTRACT DATA
+For each relevant section found, note:
+- Section ID (string)
+- Open seats (integer)
+- Total seats (integer)
+- Waitlist spots (integer, 0 if not found)
+
+## Step 4: EVALUATE CONDITION
+Check if the user's condition from Step 1 is met.
+Answer definitively:
+- If YES and data is clear → is_available = true
+- If NO → is_available = false
+- If UNCLEAR/AMBIGUOUS → is_available = false (default to false)
+
+## Step 5: BUILD JSON OUTPUT
+Create valid JSON with:
+- is_available: <true or false>
+- sections: [array of section objects] (empty if no data found)
+  - Each object: {{"section_id": "...", "open_seats": N, "total_seats": N, "waitlist": N}}
+- raw_text_summary: Brief factual summary (1-3 sentences)
+
+---
+
+# REQUIRED OUTPUT (VALID JSON ONLY)
+
+Output ONLY this JSON structure, nothing before or after:
+
+{{
+  "is_available": <true or false>,
+  "sections": [
+    {{
+      "section_id": "<section ID>",
+      "open_seats": <number>,
+      "total_seats": <number>,
+      "waitlist": <number>
+    }}
+  ],
+  "raw_text_summary": "<factual summary of findings>"
+}}
+
+# VALIDATION RULES (CHECK BEFORE OUTPUT)
+- is_available MUST be boolean (true/false)
+- sections MUST be an array (can be empty)
+- All numeric fields MUST be valid integers
+- All section objects MUST have all 4 fields
+- No markdown, no code blocks, no extra text
+- Valid JSON that can be parsed immediately
 """
 
         return prompt
