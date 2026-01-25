@@ -28,11 +28,6 @@ class AIAgentService:
     ):
         """
         Initialize AI agent service with configurable provider.
-
-        Args:
-            provider: AI provider to use ('anthropic' or 'openai')
-            api_key: API key for the selected provider
-            model: Model name to use
         """
         self.provider = provider
         self.api_key = api_key
@@ -205,8 +200,8 @@ Return ONLY this JSON structure, no additional text:
         - JSON schema reference
         - Conditional logic chains
         """
-        # Truncate page text if too long (Claude Haiku context limits)
-        max_text_length = 15000  # Keep reasonable for Haiku
+        # Truncate page text if too long (GPT context limits)
+        max_text_length = 25000  # Keep reasonable for GPT
         if len(raw_text) > max_text_length:
             logger.warning(
                 f"Page text too long ({len(raw_text)} chars), "
