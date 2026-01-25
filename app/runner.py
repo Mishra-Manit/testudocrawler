@@ -39,6 +39,7 @@ class TestudoCrawler:
         self.notification: Optional[NotificationService] = None
         self.running = False
         self.course_tasks: Dict[str, asyncio.Task] = {}
+        self.last_check_times: Dict[str, datetime] = {}
 
     def is_within_check_window(self, course: CourseConfig) -> bool:
         """
@@ -163,6 +164,7 @@ class TestudoCrawler:
                 )
                 log_event("seats_available", course_id=course.id, sections=[s.section_id for s in availability.sections if s.open_seats > 0])
 
+            self.last_check_times[course.id] = datetime.now()
             log_debug("course_checked", course_id=course.id, available=availability.is_available, duration=round(time.time() - start_time, 2))
         except Exception as e:
             log_error("course_check_failed", course_id=course.id, error=str(e), duration=round(time.time() - start_time, 2))
