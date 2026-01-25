@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     # AI Provider Configuration
     ai_provider: str = Field(
-        default="anthropic",
+        default="openai",
         alias="AI_PROVIDER",
         description="AI provider to use: 'anthropic' or 'openai'"
     )
@@ -34,7 +34,7 @@ class Settings(BaseSettings):
         alias="OPENAI_API_KEY"
     )
     openai_model: str = Field(
-        default="gpt-5-nano",
+        default="gpt-5-mini",
         alias="OPENAI_MODEL"
     )
 

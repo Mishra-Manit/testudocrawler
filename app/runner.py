@@ -18,7 +18,7 @@ import logfire
 
 from app.config import get_settings
 from app.models.schemas import CourseConfig
-from app.observability.logfire_config import initialize_logfire
+from app.observability.logfire_config import initialize_logfire, log_event, log_error, log_warning, log_debug
 from app.services.ai_agent import AIAgentService
 from app.services.notification import NotificationService
 from app.services.scraper import ScraperService
@@ -42,8 +42,6 @@ structlog.configure(
     wrapper_class=structlog.stdlib.BoundLogger,
     cache_logger_on_first_use=True,
 )
-
-logger = structlog.get_logger(__name__)
 
 
 class TestudoCrawler:
@@ -80,27 +78,23 @@ class TestudoCrawler:
             # Wrap-around case: start > end (e.g., 22 > 6, meaning 10PM-6AM)
             return current_hour >= course.check_start_hour or current_hour < course.check_end_hour
         except Exception as e:
-            logger.error(
-                "Error checking time window",
-                course_id=course.id,
-                error=str(e),
-            )
+            log_error("error_checking_time_window", course_id=course.id, error=str(e))
             # On error, allow check (fail open for safety)
             return True
 
     async def initialize(self) -> None:
         """Initialize all services."""
-        logger.info("Initializing Testudo Crawler...")
+        log_event("initializing_testudo_crawler")
 
         try:
             # Initialize Scraper Service
-            logger.info("Initializing Scraper Service...")
+            log_event("initializing_scraper_service")
             self.scraper = ScraperService(timeout=self.settings.scraper_timeout)
             await self.scraper.initialize()
-            logger.info("Scraper Service initialized successfully")
+            log_event("scraper_service_initialized")
 
             # Initialize AI Agent Service
-            logger.info("Initializing AI Agent Service...")
+            log_event("initializing_ai_agent_service")
             self.ai_agent = AIAgentService(
                 provider=self.settings.ai_provider,
                 api_key=(
@@ -114,30 +108,30 @@ class TestudoCrawler:
                     else self.settings.openai_model
                 ),
             )
-            logger.info("AI Agent Service initialized successfully")
+            log_event("ai_agent_service_initialized")
 
             # Initialize Telegram Notification Service
-            logger.info("Initializing Telegram Notification Service...")
+            log_event("initializing_notification_service")
             self.notification = NotificationService(
                 bot_token=self.settings.telegram_bot_token,
                 default_chat_id=self.settings.telegram_chat_id,
             )
-            logger.info("Telegram Notification Service initialized successfully")
+            log_event("notification_service_initialized")
 
-            logger.info("All services initialized successfully")
+            log_event("all_services_initialized")
 
         except Exception as e:
-            logger.error("Failed to initialize services", error=str(e), exc_info=True)
+            log_error("failed_to_initialize_services", error=str(e), exc_info=True)
             raise
 
     async def cleanup(self) -> None:
         """Cleanup resources on shutdown."""
-        logger.info("Cleaning up resources...")
+        log_event("cleaning_up_resources")
 
         # Cancel all course monitoring tasks
         for course_id, task in self.course_tasks.items():
             if not task.done():
-                logger.info(f"Cancelling monitoring task for course: {course_id}")
+                log_event("cancelling_monitoring_task", course_id=course_id)
                 task.cancel()
                 try:
                     await task
@@ -148,7 +142,7 @@ class TestudoCrawler:
         if self.scraper:
             await self.scraper.close()
 
-        logger.info("Cleanup complete")
+        log_event("cleanup_complete")
 
     def load_course_configs(self) -> list[CourseConfig]:
         """Load course configurations from YAML."""
@@ -158,9 +152,7 @@ class TestudoCrawler:
         courses = []
         for target in targets:
             if not target.get("enabled", True):
-                logger.info(
-                    f"Skipping disabled course: {target.get('id', 'unknown')}"
-                )
+                log_event("skipping_disabled_course", course_id=target.get('id', 'unknown'))
                 continue
 
             try:
@@ -179,20 +171,18 @@ class TestudoCrawler:
                     notification_message=target.get("notification_message"),
                     check_interval_seconds=target.get("interval", 300),
                     enabled=target.get("enabled", True),
-                    recipients=target.get("recipients"),
                     check_start_hour=target.get("check_start_hour", 8),
                     check_end_hour=target.get("check_end_hour", 23),
                     check_timezone=target.get("check_timezone", "America/New_York"),
                 )
                 courses.append(course)
-                recipient_info = f"{len(course.recipients)} recipients" if course.recipients else "global fallback"
-                logger.info(f"Loaded course: {course.id} ({recipient_info})")
+                log_event("loaded_course", course_id=course.id)
 
             except Exception as e:
-                logger.error(f"Failed to load course {target.get('id', 'unknown')}: {e}")
+                log_error("failed_to_load_course", course_id=target.get('id', 'unknown'), error=str(e))
                 continue  # Continue loading other courses
 
-        logger.info(f"Loaded {len(courses)} enabled course(s) to monitor")
+        log_event("courses_loaded", count=len(courses))
         return courses
 
     async def check_course(self, course: CourseConfig) -> None:
@@ -205,54 +195,17 @@ class TestudoCrawler:
             course_name=course.name,
         ):
             start_time = time.time()
-            logger.info(
-                "Starting course check",
-                course_id=course.id,
-                course_name=course.name,
-                url=course.url,
-                instructions=course.user_instructions[:50] + "...",  # Log first 50 chars
-            )
+            log_event("starting_course_check", course_id=course.id, course_name=course.name, url=course.url)
 
             try:
                 # Step 1: Scrape the course page
-                with logfire.span(
-                    "scraping_started",
-                    course_id=course.id,
-                    course_name=course.name,
-                    url=course.url,
-                ):
-                    logger.info(
-                        "Scraping started",
-                        course_id=course.id,
-                        url=course.url,
-                    )
-
+                log_event("scraping_started", course_id=course.id, url=course.url)
                 scrape_result = await self.scraper.scrape_page(course.url)
                 page_text = scrape_result["text"]
-
-                with logfire.span(
-                    "scraping_completed",
-                    course_id=course.id,
-                    text_length=len(page_text),
-                ):
-                    logger.info(
-                        "Scraping complete",
-                        course_id=course.id,
-                        text_length=len(page_text),
-                    )
+                log_event("scraping_completed", course_id=course.id, text_length=len(page_text))
 
                 # Step 2: Analyze with AI agent using user instructions
-                with logfire.span(
-                    "starting_agent_work",
-                    course_id=course.id,
-                    course_name=course.name,
-                ):
-                    logger.info(
-                        "Starting agent work",
-                        course_id=course.id,
-                        course_name=course.name,
-                    )
-
+                log_event("starting_agent_work", course_id=course.id, course_name=course.name)
                 with logfire.span(
                     "agent_analysis",
                     course_id=course.id,
@@ -264,30 +217,12 @@ class TestudoCrawler:
                         user_instructions=course.user_instructions,
                     )
 
-                logger.info(
-                    "AI analysis complete",
-                    course_id=course.id,
-                    is_available=availability.is_available,
-                    sections_found=len(availability.sections),
-                )
+                log_event("ai_analysis_complete", course_id=course.id, is_available=availability.is_available, sections_found=len(availability.sections))
 
                 # Step 3: Send notifications if condition is met
                 if availability.is_available:
-                    logger.warning(
-                        "CONDITION MET!",
-                        course_id=course.id,
-                        course_name=course.name,
-                        sections=[
-                            s.section_id for s in availability.sections if s.open_seats > 0
-                        ],
-                    )
-
-                    # Log to Logfire for high visibility
-                    logfire.info(
-                        "Seats available!",
-                        course_id=course.id,
-                        sections=[s.section_id for s in availability.sections if s.open_seats > 0]
-                    )
+                    open_sections = [s.section_id for s in availability.sections if s.open_seats > 0]
+                    log_event("condition_met", course_id=course.id, course_name=course.name, sections=open_sections)
 
                     with logfire.span(
                         "sending_notification",
@@ -301,60 +236,25 @@ class TestudoCrawler:
                             custom_message=course.notification_message,
                         )
 
-                    logger.info(
-                        "Notification sent",
-                        course_id=course.id,
-                        success=notification_result.success,
-                        message_id=notification_result.message_id,
-                    )
+                    log_event("notification_sent", course_id=course.id, success=notification_result.success, message_id=notification_result.message_id)
                 else:
-                    with logfire.span(
-                        "message_not_sent",
-                        course_id=course.id,
-                        reason="Agent returned false - condition not met",
-                    ):
-                        logger.info(
-                            "Condition not met",
-                            course_id=course.id,
-                            course_name=course.name,
-                        )
+                    log_event("condition_not_met", course_id=course.id, course_name=course.name)
 
                 # Update last check time
                 self.last_check_times[course.id] = datetime.utcnow()
 
                 duration = time.time() - start_time
-                logger.info(
-                    "Course check complete",
-                    course_id=course.id,
-                    duration_seconds=round(duration, 2),
-                    is_available=availability.is_available,
-                )
+                log_event("course_check_complete", course_id=course.id, duration_seconds=round(duration, 2), is_available=availability.is_available)
 
             except Exception as e:
                 duration = time.time() - start_time
-                logger.error(
-                    "Course check failed",
-                    course_id=course.id,
-                    course_name=course.name,
-                    error=str(e),
-                    duration_seconds=round(duration, 2),
-                    exc_info=True,
-                )
+                log_error("course_check_failed", course_id=course.id, course_name=course.name, error=str(e), duration_seconds=round(duration, 2), exc_info=True)
 
     async def monitor_course_loop(self, course: CourseConfig) -> None:
         """
         Monitor a single course in a loop with its configured interval.
-
-        Args:
-            course: Course configuration to monitor
         """
-        logger.info(
-            "Starting monitoring loop",
-            course_id=course.id,
-            course_name=course.name,
-            interval_seconds=course.check_interval_seconds,
-            check_window=f"{course.check_start_hour}:00-{course.check_end_hour}:00 {course.check_timezone}",
-        )
+        log_event("starting_monitoring_loop", course_id=course.id, course_name=course.name, interval_seconds=course.check_interval_seconds, check_window=f"{course.check_start_hour}:00-{course.check_end_hour}:00 {course.check_timezone}")
 
         while self.running:
             try:
@@ -364,43 +264,29 @@ class TestudoCrawler:
                 else:
                     tz = ZoneInfo(course.check_timezone)
                     current_time = datetime.now(tz)
-                    logger.debug(
-                        "Outside check window, skipping",
-                        course_id=course.id,
-                        current_time=current_time.isoformat(),
-                        window=f"{course.check_start_hour}:00-{course.check_end_hour}:00",
-                    )
+                    log_debug("outside_check_window", course_id=course.id, current_time=current_time.isoformat(), window=f"{course.check_start_hour}:00-{course.check_end_hour}:00")
 
                 # Wait for the configured interval before next check
-                logger.debug(
-                    "Waiting for next check",
-                    course_id=course.id,
-                    wait_seconds=course.check_interval_seconds,
-                )
+                log_debug("waiting_for_next_check", course_id=course.id, wait_seconds=course.check_interval_seconds)
                 await asyncio.sleep(course.check_interval_seconds)
 
             except asyncio.CancelledError:
-                logger.info("Monitoring loop cancelled", course_id=course.id)
+                log_event("monitoring_loop_cancelled", course_id=course.id)
                 break
             except Exception as e:
-                logger.error(
-                    "Error in monitoring loop",
-                    course_id=course.id,
-                    error=str(e),
-                    exc_info=True,
-                )
+                log_error("error_in_monitoring_loop", course_id=course.id, error=str(e), exc_info=True)
                 # Wait a bit before retrying on error
                 await asyncio.sleep(60)
 
     async def run(self) -> None:
         """Run the main monitoring loop."""
-        logger.info("Starting Testudo Crawler")
+        log_event("starting_testudo_crawler")
 
         # Load course configurations
         courses = self.load_course_configs()
 
         if not courses:
-            logger.warning("No courses configured for monitoring")
+            log_warning("no_courses_configured")
             return
 
         # Start monitoring each course in its own task
@@ -408,17 +294,13 @@ class TestudoCrawler:
         for course in courses:
             task = asyncio.create_task(self.monitor_course_loop(course))
             self.course_tasks[course.id] = task
-            logger.info(
-                "Started monitoring task",
-                course_id=course.id,
-                course_name=course.name,
-            )
+            log_event("started_monitoring_task", course_id=course.id, course_name=course.name)
 
         # Wait for all tasks (they run indefinitely)
         try:
             await asyncio.gather(*self.course_tasks.values())
         except asyncio.CancelledError:
-            logger.info("Monitoring tasks cancelled")
+            log_event("monitoring_tasks_cancelled")
         finally:
             self.running = False
 
@@ -428,9 +310,9 @@ class TestudoCrawler:
             await self.initialize()
             await self.run()
         except KeyboardInterrupt:
-            logger.info("Received keyboard interrupt, shutting down...")
+            log_event("received_keyboard_interrupt")
         except Exception as e:
-            logger.error("Fatal error", error=str(e), exc_info=True)
+            log_error("fatal_error", error=str(e), exc_info=True)
             raise
         finally:
             await self.cleanup()
@@ -440,7 +322,7 @@ def setup_signal_handlers(crawler: TestudoCrawler) -> None:
     """Setup signal handlers for graceful shutdown."""
 
     def signal_handler(signum, frame):
-        logger.info(f"Received signal {signum}, initiating shutdown...")
+        log_event("received_signal", signum=signum)
         crawler.running = False
 
     signal.signal(signal.SIGINT, signal_handler)
@@ -458,7 +340,7 @@ async def main() -> None:
     try:
         await crawler.start()
     except Exception as e:
-        logger.error("Application failed", error=str(e), exc_info=True)
+        log_error("application_failed", error=str(e), exc_info=True)
         sys.exit(1)
 
 
