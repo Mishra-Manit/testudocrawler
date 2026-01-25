@@ -211,18 +211,22 @@ class TestudoCrawler:
             await self.cleanup()
 
 
+def setup_signal_handlers(crawler: "TestudoCrawler") -> None:
+    """Configure SIGINT/SIGTERM handlers to stop the crawler gracefully."""
+    def handle_signal(_signum, _frame):
+        crawler.running = False
+
+    signal.signal(signal.SIGINT, handle_signal)
+    signal.signal(signal.SIGTERM, handle_signal)
+
+
 async def main() -> None:
     """Main entry point."""
     configure_structlog()
     initialize_logfire()
 
     crawler = TestudoCrawler()
-
-    def handle_signal(signum, frame):
-        crawler.running = False
-
-    signal.signal(signal.SIGINT, handle_signal)
-    signal.signal(signal.SIGTERM, handle_signal)
+    setup_signal_handlers(crawler)
 
     try:
         await crawler.start()
