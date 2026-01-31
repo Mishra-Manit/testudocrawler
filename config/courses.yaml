@@ -5,11 +5,11 @@ targets:
   - id: "cmsc216_spring26"
     name: "CMSC216 (Kauffman)"
     url: "https://app.testudo.umd.edu/soc/search?courseId=CMSC216&sectionId=&termId=202601&_openSectionsOnly=on&creditCompare=&credits=&courseLevelFilter=ALL&instructor=Kauffman%2C+Christopher&_facetoface=on&_blended=on&_online=on&courseStartCompare=&courseStartHour=&courseStartMin=&courseStartAM=&courseEndHour=&courseEndMin=&courseEndAM=&teachingCenter=ALL&_classDay1=on&_classDay2=on&_classDay3=on&_classDay4=on&_classDay5=on"
-    user_instructions: "Check if there are any open seats available for Professor Kauffman's CMSC216 sections 0205 or 0206 specifically. Look for sections 0205 or 0206 where the 'Open' seat count is greater than 0. Ignore all other sections."
+    user_instructions: "Check if there are any open seats available for Professor Kauffman's CMSC216 section 0206 specifically. Look for section 0206 where the 'Open' seat count is greater than 0. Ignore all other sections."
     notification_message: "🚨 CMSC216 ALERT: Kauffman has seats!\nSections: {sections}\n{course_url}"
     interval: 300
     enabled: true
-    check_start_hour: 8
+    check_start_hour: 2
     check_end_hour: 23
     check_timezone: "America/New_York"
   # - id: "cmsc216_herman_spring26"
