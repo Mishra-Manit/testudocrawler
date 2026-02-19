@@ -3,8 +3,9 @@ AI agent service using Pydantic AI for seat availability analysis.
 Uses Claude Haiku for efficient, cost-effective content analysis.
 """
 
-import logging
 from typing import Optional
+
+import structlog
 
 from pydantic_ai import Agent
 from pydantic_ai.models.anthropic import AnthropicModel
@@ -14,7 +15,7 @@ from pydantic_ai.providers.openai import OpenAIProvider
 
 from app.models.schemas import AvailabilityCheck
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class AIAgentService:

@@ -20,27 +20,30 @@ services:
     healthCheckPath: /health
 
     # Environment variables
-    # IMPORTANT: You must set these in the Render dashboard for security
+    # IMPORTANT: You must set secret values in the Render dashboard
     envVars:
       - key: PORT
         value: 10000
 
-      - key: ANTHROPIC_API_KEY
+      - key: AI_PROVIDER
+        value: openai  # Change to 'anthropic' if preferred
+
+      - key: OPENAI_API_KEY
         sync: false  # Must be set manually in Render dashboard
+
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+
+      - key: ANTHROPIC_API_KEY
+        sync: false  # Only required if AI_PROVIDER=anthropic
 
       - key: ANTHROPIC_MODEL
-        value: claude-3-5-sonnet-20241022
+        value: claude-3-haiku-20240307
 
-      - key: TWILIO_ACCOUNT_SID
+      - key: TELEGRAM_BOT_TOKEN
         sync: false  # Must be set manually in Render dashboard
 
-      - key: TWILIO_AUTH_TOKEN
-        sync: false  # Must be set manually in Render dashboard
-
-      - key: TWILIO_PHONE_NUMBER
-        sync: false  # Must be set manually in Render dashboard
-
-      - key: RECIPIENT_PHONE_NUMBER
+      - key: TELEGRAM_CHAT_ID
         sync: false  # Must be set manually in Render dashboard
 
       - key: SCRAPER_TIMEOUT

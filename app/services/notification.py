@@ -5,16 +5,17 @@ Uses native async Telegram Bot API - no thread pool executor needed.
 """
 
 import asyncio
-import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
+
+import structlog
 
 from telegram import Bot
 from telegram.error import TelegramError
 
 from app.models.schemas import AvailabilityCheck, NotificationResult
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class NotificationService:
@@ -76,7 +77,7 @@ class NotificationService:
                     success=True,
                     message_id=telegram_message.message_id,
                     recipient=chat_id,
-                    sent_at=datetime.utcnow(),
+                    sent_at=datetime.now(timezone.utc),
                 )
 
             except TelegramError as e:
@@ -95,7 +96,7 @@ class NotificationService:
                         success=False,
                         recipient=chat_id,
                         error=f"Telegram error: {e.message}",
-                        sent_at=datetime.utcnow(),
+                        sent_at=datetime.now(timezone.utc),
                     )
 
             except Exception as e:
@@ -112,7 +113,7 @@ class NotificationService:
                         success=False,
                         recipient=chat_id,
                         error=f"Unexpected error: {str(e)}",
-                        sent_at=datetime.utcnow(),
+                        sent_at=datetime.now(timezone.utc),
                     )
 
         # This should never be reached
@@ -120,7 +121,7 @@ class NotificationService:
             success=False,
             recipient=chat_id,
             error="Max retries exceeded",
-            sent_at=datetime.utcnow(),
+            sent_at=datetime.now(timezone.utc),
         )
 
     async def send_availability_alert(

@@ -48,8 +48,8 @@ You'll need:
 **Step 1: Clone the Repository**
 
 ```bash
-git clone https://github.com/yourusername/testudo-crawler.git
-cd testudo-crawler
+git clone https://github.com/Mishra-Manit/testudocrawler.git
+cd testudocrawler
 ```
 
 **Step 2: Install Dependencies**
@@ -119,7 +119,7 @@ Deploy to Render's free tier for 24/7 monitoring.
 **Step 1: Push to GitHub**
 
 ```bash
-git remote add origin https://github.com/yourusername/testudo-crawler.git
+git remote add origin https://github.com/Mishra-Manit/testudocrawler.git
 git add .
 git commit -m "Initial commit"
 git push -u origin main
@@ -129,7 +129,7 @@ git push -u origin main
 
 **Option A: One-Click Deploy**
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/yourusername/testudo-crawler)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Mishra-Manit/testudocrawler)
 
 Click the button above and Render will use the included `render.yaml` config.
 

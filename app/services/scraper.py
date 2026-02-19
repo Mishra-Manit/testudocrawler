@@ -4,13 +4,14 @@ Handles page loading, text extraction, and retry logic.
 """
 
 import asyncio
-import logging
 import re
 from typing import Optional
 
+import structlog
+
 from playwright.async_api import Browser, Page, async_playwright
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class ScraperService:

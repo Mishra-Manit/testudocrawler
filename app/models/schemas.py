@@ -2,7 +2,7 @@
 Pydantic models for data structures and schemas.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
@@ -54,7 +54,7 @@ class NotificationResult(BaseModel):
         description="Error message if delivery failed",
     )
     sent_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(timezone.utc),
         description="When the notification was sent",
     )
 

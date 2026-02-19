@@ -11,12 +11,14 @@ import yaml
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_PROJECT_ROOT = Path(__file__).parent.parent
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # Anthropic API Configuration
-    anthropic_api_key: str = Field(..., alias="ANTHROPIC_API_KEY")
+    anthropic_api_key: Optional[str] = Field(default=None, alias="ANTHROPIC_API_KEY")
     anthropic_model: str = Field(
         default="claude-3-haiku-20240307", alias="ANTHROPIC_MODEL"
     )
@@ -56,7 +58,7 @@ class Settings(BaseSettings):
     logfire_token: Optional[str] = Field(default=None, alias="LOGFIRE_TOKEN")
 
     # Configuration File Paths
-    courses_config_path: str = Field(default="config/courses.yaml")
+    courses_config_path: str = Field(default=str(_PROJECT_ROOT / "config" / "courses.yaml"))
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -94,9 +96,20 @@ class Settings(BaseSettings):
             raise ValueError("OPENAI_API_KEY is required when AI_PROVIDER='openai'")
         return v
 
+    @field_validator("anthropic_api_key")
+    @classmethod
+    def validate_anthropic_key(cls, v: Optional[str], info) -> Optional[str]:
+        """Validate Anthropic API key is provided when using Anthropic provider."""
+        ai_provider = info.data.get("ai_provider", "anthropic")
+        if ai_provider == "anthropic" and not v:
+            raise ValueError("ANTHROPIC_API_KEY is required when AI_PROVIDER='anthropic'")
+        return v
+
     def load_courses_config(self) -> dict[str, Any]:
         """Load courses configuration from YAML file."""
         path = Path(self.courses_config_path)
+        if not path.is_absolute():
+            path = _PROJECT_ROOT / path
         if not path.exists():
             raise FileNotFoundError(
                 f"Courses configuration file not found: {path.absolute()}"

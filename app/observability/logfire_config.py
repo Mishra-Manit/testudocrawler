@@ -63,17 +63,21 @@ def initialize_logfire():
 
 
 def log_event(event: str, **kwargs) -> None:
-    logfire.info(event, **kwargs)
+    if _initialized:
+        logfire.info(event, **kwargs)
     logger.info(event, **kwargs)
 
 def log_error(event: str, **kwargs) -> None:
-    logfire.error(event, **kwargs)
+    if _initialized:
+        logfire.error(event, **kwargs)
     logger.error(event, **kwargs)
 
 def log_warning(event: str, **kwargs) -> None:
-    logfire.warn(event, **kwargs)
+    if _initialized:
+        logfire.warn(event, **kwargs)
     logger.warning(event, **kwargs)
 
 def log_debug(event: str, **kwargs) -> None:
-    logfire.debug(event, **kwargs)
+    if _initialized:
+        logfire.debug(event, **kwargs)
     logger.debug(event, **kwargs)
